@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Remote Studio",
+        "description": "Configure your Zigbee and Matter remotes through a visual UI. Press Submit to enable."
+      }
+    },
+    "abort": {
+      "already_configured": "Remote Studio is already configured."
+    }
+  }
+}
