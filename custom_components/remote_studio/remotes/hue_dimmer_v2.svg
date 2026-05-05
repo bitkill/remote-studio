@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 200 440"
+     role="img"
+     aria-label="Philips Hue Dimmer v2 remote">
+  <style>
+    .rs-body { fill: var(--rs-body-fill, #f7f7f7); stroke: var(--rs-body-stroke, #cfcfcf); stroke-width: 2; }
+    .rs-button { cursor: pointer; transition: filter 120ms ease-in-out; }
+    .rs-button rect, .rs-button circle, .rs-button path.btn-shape {
+      fill: var(--rs-btn-fill, #ffffff);
+      stroke: var(--rs-btn-stroke, #cfcfcf);
+      stroke-width: 1.5;
+    }
+    .rs-button:hover { filter: brightness(0.96); }
+    .rs-button.is-active rect,
+    .rs-button.is-active circle,
+    .rs-button.is-active path.btn-shape {
+      fill: var(--rs-btn-active-fill, #d8e8ff);
+      stroke: var(--rs-btn-active-stroke, #5b8def);
+    }
+    .rs-label { fill: var(--rs-label-fill, #1f1f1f); font-family: system-ui, sans-serif; font-weight: 600; pointer-events: none; }
+    .rs-glyph { fill: none; stroke: var(--rs-label-fill, #1f1f1f); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+  </style>
+
+  <!-- Body: rounded rectangle -->
+  <rect class="rs-body" x="20" y="20" width="160" height="400" rx="32" ry="32" />
+
+  <!-- POWER (top) -->
+  <g id="button-power" class="rs-button">
+    <rect x="40" y="40" width="120" height="80" rx="14" ry="14" />
+    <circle cx="100" cy="80" r="14" fill="none" stroke="var(--rs-label-fill, #1f1f1f)" stroke-width="3" />
+    <line x1="100" y1="68" x2="100" y2="86" stroke="var(--rs-label-fill, #1f1f1f)" stroke-width="3" stroke-linecap="round" />
+  </g>
+
+  <!-- BRIGHTNESS UP -->
+  <g id="button-bright_up" class="rs-button">
+    <rect x="40" y="135" width="120" height="80" rx="14" ry="14" />
+    <polyline class="rs-glyph" points="80,180 100,160 120,180" />
+  </g>
+
+  <!-- BRIGHTNESS DOWN -->
+  <g id="button-bright_down" class="rs-button">
+    <rect x="40" y="230" width="120" height="80" rx="14" ry="14" />
+    <polyline class="rs-glyph" points="80,250 100,270 120,250" />
+  </g>
+
+  <!-- HUE (bottom) -->
+  <g id="button-hue" class="rs-button">
+    <rect x="40" y="325" width="120" height="80" rx="14" ry="14" />
+    <text class="rs-label" x="100" y="372" text-anchor="middle" font-size="18">HUE</text>
+  </g>
+</svg>

@@ -1,0 +1,33 @@
+id: aqara_wxkg11lm
+name: Aqara Mini Switch (WXKG11LM)
+manufacturer: LUMI
+models:
+  - lumi.sensor_switch.aq2
+  - lumi.remote.b1acn01
+  - WXKG11LM
+svg: aqara_wxkg11lm.svg
+
+buttons:
+  - id: button
+    label: "Button"
+    states:
+      - id: single
+        label: "Single press"
+        sources:
+          z2m: { action: "single" }
+          zha: { command: "click", args: { click_type: "single" } }
+      - id: double
+        label: "Double press"
+        sources:
+          z2m: { action: "double" }
+          zha: { command: "click", args: { click_type: "double" } }
+      - id: hold
+        label: "Hold"
+        sources:
+          z2m: { action: "hold" }
+          zha: { command: "hold" }
+      - id: release
+        label: "Release"
+        sources:
+          z2m: { action: "release" }
+          zha: { command: "release" }

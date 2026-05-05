@@ -26,9 +26,14 @@ through HACS, and integrates directly with HA's device/entity registries.
 
 A new remote is one YAML definition + one SVG. Drop them in either the
 built-in `custom_components/remote_studio/remotes/` or your config directory
-at `<config>/remote_studio/remotes/` to extend without forking.
+at `<config>/remote_studio/remotes/` to extend without forking. See the
+full guide at [`docs/authoring-remotes.md`](docs/authoring-remotes.md).
 
-See `docs/authoring-remotes.md` (coming soon).
+### Built-in remotes
+
+- IKEA STYRBAR (Remote Control N2) — ZHA + Z2M
+- Philips Hue Dimmer v2 (RWL022) — Z2M
+- Aqara Mini Switch (WXKG11LM) — ZHA + Z2M
 
 ## Install
 

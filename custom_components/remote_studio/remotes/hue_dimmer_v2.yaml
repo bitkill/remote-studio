@@ -1,0 +1,65 @@
+id: hue_dimmer_v2
+name: Philips Hue Dimmer (v2)
+manufacturer: Signify Netherlands B.V.
+models:
+  - RWL022
+svg: hue_dimmer_v2.svg
+
+# v2 dimmer (RWL022) exposes button events. ZHA support requires the Philips
+# manufacturer-specific cluster 0xFC00 — for now this definition targets
+# Zigbee2MQTT (where the action strings are stable across firmware).
+buttons:
+  - id: power
+    label: "Power"
+    states:
+      - id: press
+        label: "Press"
+        sources:
+          z2m: { action: "on_press" }
+      - id: hold
+        label: "Hold"
+        sources:
+          z2m: { action: "on_hold" }
+      - id: release
+        label: "Release"
+        sources:
+          z2m: { action: "on_press_release" }
+
+  - id: bright_up
+    label: "Brighter"
+    states:
+      - id: press
+        sources:
+          z2m: { action: "up_press" }
+      - id: hold
+        sources:
+          z2m: { action: "up_hold" }
+      - id: release
+        sources:
+          z2m: { action: "up_press_release" }
+
+  - id: bright_down
+    label: "Dimmer"
+    states:
+      - id: press
+        sources:
+          z2m: { action: "down_press" }
+      - id: hold
+        sources:
+          z2m: { action: "down_hold" }
+      - id: release
+        sources:
+          z2m: { action: "down_press_release" }
+
+  - id: hue
+    label: "Hue"
+    states:
+      - id: press
+        sources:
+          z2m: { action: "off_press" }
+      - id: hold
+        sources:
+          z2m: { action: "off_hold" }
+      - id: release
+        sources:
+          z2m: { action: "off_press_release" }
