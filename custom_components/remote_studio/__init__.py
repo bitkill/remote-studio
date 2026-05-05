@@ -8,6 +8,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
+from .storage import async_get_store
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -16,6 +17,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Remote Studio from a config entry."""
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {}
+    await async_get_store(hass)
     _LOGGER.debug("Remote Studio entry %s set up", entry.entry_id)
     return True
 
