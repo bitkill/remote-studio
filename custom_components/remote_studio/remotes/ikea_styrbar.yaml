@@ -1,0 +1,119 @@
+id: ikea_styrbar
+name: IKEA STYRBAR
+manufacturer: IKEA of Sweden
+models:
+  - Remote Control N2
+svg: ikea_styrbar.svg
+
+buttons:
+  - id: on
+    label: "On"
+    states:
+      - id: press
+        label: "Press"
+        sources:
+          zha:
+            command: "on"
+          z2m:
+            action: "on"
+      - id: hold
+        label: "Hold"
+        sources:
+          zha:
+            command: "move_with_on_off"
+          z2m:
+            action: "brightness_move_up"
+      - id: release
+        label: "Release"
+        sources:
+          zha:
+            command: "stop_with_on_off"
+          z2m:
+            action: "brightness_stop"
+
+  - id: off
+    label: "Off"
+    states:
+      - id: press
+        label: "Press"
+        sources:
+          zha:
+            command: "off"
+          z2m:
+            action: "off"
+      - id: hold
+        label: "Hold"
+        sources:
+          zha:
+            command: "move"
+          z2m:
+            action: "brightness_move_down"
+      - id: release
+        label: "Release"
+        sources:
+          zha:
+            command: "stop"
+          z2m:
+            action: "brightness_stop_down"
+
+  - id: arrow_left
+    label: "Left arrow"
+    states:
+      - id: press
+        label: "Press"
+        sources:
+          zha:
+            command: "press"
+            args:
+              direction: "left"
+          z2m:
+            action: "arrow_left_click"
+      - id: hold
+        label: "Hold"
+        sources:
+          zha:
+            command: "hold"
+            args:
+              direction: "left"
+          z2m:
+            action: "arrow_left_hold"
+      - id: release
+        label: "Release"
+        sources:
+          zha:
+            command: "release"
+            args:
+              direction: "left"
+          z2m:
+            action: "arrow_left_release"
+
+  - id: arrow_right
+    label: "Right arrow"
+    states:
+      - id: press
+        label: "Press"
+        sources:
+          zha:
+            command: "press"
+            args:
+              direction: "right"
+          z2m:
+            action: "arrow_right_click"
+      - id: hold
+        label: "Hold"
+        sources:
+          zha:
+            command: "hold"
+            args:
+              direction: "right"
+          z2m:
+            action: "arrow_right_hold"
+      - id: release
+        label: "Release"
+        sources:
+          zha:
+            command: "release"
+            args:
+              direction: "right"
+          z2m:
+            action: "arrow_right_release"

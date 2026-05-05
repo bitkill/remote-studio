@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 240 420"
+     role="img"
+     aria-label="IKEA STYRBAR remote">
+  <style>
+    .rs-body { fill: var(--rs-body-fill, #f4f1ec); stroke: var(--rs-body-stroke, #c8c2b6); stroke-width: 2; }
+    .rs-button { cursor: pointer; transition: filter 120ms ease-in-out; }
+    .rs-button rect, .rs-button circle, .rs-button path.btn-shape {
+      fill: var(--rs-btn-fill, #ffffff);
+      stroke: var(--rs-btn-stroke, #c8c2b6);
+      stroke-width: 1.5;
+    }
+    .rs-button:hover { filter: brightness(0.96); }
+    .rs-button.is-active rect,
+    .rs-button.is-active circle,
+    .rs-button.is-active path.btn-shape {
+      fill: var(--rs-btn-active-fill, #d8e8ff);
+      stroke: var(--rs-btn-active-stroke, #5b8def);
+    }
+    .rs-label { fill: var(--rs-label-fill, #38322a); font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; font-weight: 600; pointer-events: none; }
+    .rs-glyph { fill: none; stroke: var(--rs-label-fill, #38322a); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+  </style>
+
+  <!-- Body -->
+  <rect class="rs-body" x="20" y="20" width="200" height="380" rx="100" ry="100" />
+
+  <!-- ON (top) -->
+  <g id="button-on" class="rs-button">
+    <rect x="40" y="40" width="160" height="120" rx="60" ry="60" />
+    <text class="rs-label" x="120" y="110" text-anchor="middle" font-size="28">ON</text>
+  </g>
+
+  <!-- LEFT ARROW -->
+  <g id="button-arrow_left" class="rs-button">
+    <rect x="40" y="170" width="70" height="80" rx="14" ry="14" />
+    <polyline class="rs-glyph" points="86,200 64,210 86,220" />
+  </g>
+
+  <!-- RIGHT ARROW -->
+  <g id="button-arrow_right" class="rs-button">
+    <rect x="130" y="170" width="70" height="80" rx="14" ry="14" />
+    <polyline class="rs-glyph" points="154,200 176,210 154,220" />
+  </g>
+
+  <!-- OFF (bottom) -->
+  <g id="button-off" class="rs-button">
+    <rect x="40" y="260" width="160" height="120" rx="60" ry="60" />
+    <text class="rs-label" x="120" y="330" text-anchor="middle" font-size="28">OFF</text>
+  </g>
+</svg>
