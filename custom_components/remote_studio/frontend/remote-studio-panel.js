@@ -45,7 +45,9 @@ class RemoteStudioPanel extends HTMLElement {
     this._view = "list"; // 'list' | 'remote'
     this._listLoaded = false;
     this._remotes = [];
+    this._candidates = [];
     this._definitions = [];
+    this._testMode = false;
     this._currentRemote = null; // { device, definition, svg, mappings }
     this._selectedButtonId = null;
     this._selectedStateId = null;
@@ -98,6 +100,9 @@ class RemoteStudioPanel extends HTMLElement {
         type: WS_LIST,
       });
       this._remotes = Array.isArray(result.remotes) ? result.remotes : [];
+      this._candidates = Array.isArray(result.candidates)
+        ? result.candidates
+        : [];
       this._definitions = Array.isArray(result.definitions)
         ? result.definitions
         : [];
@@ -109,17 +114,16 @@ class RemoteStudioPanel extends HTMLElement {
     this._render();
   }
 
-  async _openRemote(deviceId) {
+  async _openRemote(deviceId, definitionId) {
     this._error = null;
     this._currentRemote = null;
     this._selectedButtonId = null;
     this._view = "remote";
     this._render();
     try {
-      const result = await this._hass.connection.sendMessagePromise({
-        type: WS_GET,
-        device_id: deviceId,
-      });
+      const msg = { type: WS_GET, device_id: deviceId };
+      if (definitionId) msg.definition_id = definitionId;
+      const result = await this._hass.connection.sendMessagePromise(msg);
       this._currentRemote = result;
       // Pre-select the first button + first state for convenience.
       if (result.definition?.buttons?.length) {
@@ -202,6 +206,15 @@ class RemoteStudioPanel extends HTMLElement {
             this._openRemote(el.dataset.deviceId),
           ),
         );
+      root
+        .querySelectorAll("[data-pair-device]")
+        .forEach((select) =>
+          select.addEventListener("change", (e) => {
+            const definitionId = e.target.value;
+            if (!definitionId) return;
+            this._openRemote(e.target.dataset.pairDevice, definitionId);
+          }),
+        );
     } else {
       const back = root.querySelector(".back");
       if (back) back.addEventListener("click", () => this._backToList());
@@ -216,12 +229,52 @@ class RemoteStudioPanel extends HTMLElement {
     if (!svg) return;
     svg.querySelectorAll('[id^="button-"]').forEach((node) => {
       const buttonId = node.id.replace(/^button-/, "");
-      node.addEventListener("click", () => this._selectButton(buttonId));
-      // Visual selection highlight
+      node.addEventListener("click", () => this._onSvgButtonClick(buttonId));
       if (buttonId === this._selectedButtonId) {
         node.classList.add("is-active");
       }
     });
+    const toggle = root.querySelector("[data-test-toggle]");
+    if (toggle) {
+      toggle.addEventListener("change", (e) => {
+        this._testMode = !!e.target.checked;
+        this._render();
+      });
+    }
+  }
+
+  _onSvgButtonClick(buttonId) {
+    if (!this._testMode) {
+      this._selectButton(buttonId);
+      return;
+    }
+    // In test mode, fire the configured action for that button's currently
+    // selected state, falling back to the first state if none selected on it.
+    const button = this._currentRemote?.definition?.buttons?.find(
+      (b) => b.id === buttonId,
+    );
+    if (!button) return;
+    const stateId =
+      this._selectedButtonId === buttonId && this._selectedStateId
+        ? this._selectedStateId
+        : button.states?.[0]?.id;
+    if (!stateId) return;
+    const actions =
+      this._currentRemote?.mappings?.[buttonId]?.[stateId] || [];
+    if (!actions.length) {
+      this._showToast(`${button.label || buttonId} / ${stateId} is not configured`);
+      this._pulseButton(buttonId);
+      return;
+    }
+    this._pulseButton(buttonId);
+    this._hass.connection
+      .sendMessagePromise({ type: WS_TEST, actions })
+      .then(() => this._showToast(`Triggered ${button.label || buttonId} / ${stateId}`))
+      .catch((err) =>
+        this._showToast(
+          `Test failed: ${(err && (err.message || err.code)) || "error"}`,
+        ),
+      );
   }
 
   _wireButtonList() {
@@ -457,6 +510,30 @@ class RemoteStudioPanel extends HTMLElement {
       )
       .join("");
 
+    const layoutOptions = this._definitions
+      .map(
+        (d) =>
+          `<option value="${escapeAttr(d.id)}">${escapeHtml(d.name)}</option>`,
+      )
+      .join("");
+    const candidates = this._candidates
+      .map(
+        (c) => `
+        <div class="candidate">
+          <div>
+            <div class="title">${escapeHtml(c.device_name) || "Unnamed device"}</div>
+            <div class="meta">${escapeHtml(c.manufacturer || "")} · ${escapeHtml(c.model || "")}</div>
+          </div>
+          <div class="candidate-actions">
+            <select data-pair-device="${escapeAttr(c.device_id)}">
+              <option value="">Pair with layout…</option>
+              ${layoutOptions}
+            </select>
+          </div>
+        </div>`,
+      )
+      .join("");
+
     return `
       <header class="page-header">
         <h1>Remote Studio</h1>
@@ -471,6 +548,15 @@ class RemoteStudioPanel extends HTMLElement {
             : `<div class="empty">No matching remotes paired yet. Pair a supported remote in ZHA or Zigbee2MQTT to see it here.</div>`
         }
       </section>
+      ${
+        this._candidates.length
+          ? `<section>
+            <h2>Unmatched Zigbee/Matter devices</h2>
+            <p class="lead">These devices are paired but no layout matches automatically. Pick one to try.</p>
+            <div class="candidate-list">${candidates}</div>
+          </section>`
+          : ""
+      }
       <section>
         <h2>Available layouts</h2>
         ${this._definitions.length ? `<ul>${defs}</ul>` : "<p>No layouts loaded.</p>"}
@@ -531,10 +617,14 @@ class RemoteStudioPanel extends HTMLElement {
     return `
       <header class="page-header with-back">
         <button class="back">← Back</button>
-        <div>
+        <div class="header-info">
           <h1>${escapeHtml(device.name) || "Remote"}</h1>
           <p class="lead">${escapeHtml(definition.name)} · ${escapeHtml(device.manufacturer || "")}</p>
         </div>
+        <label class="test-toggle">
+          <input type="checkbox" ${this._testMode ? "checked" : ""} data-test-toggle />
+          <span>Test mode</span>
+        </label>
       </header>
       ${this._error ? `<div class="error">${escapeHtml(this._error)}</div>` : ""}
       ${this._toast ? `<div class="toast">${escapeHtml(this._toast)}</div>` : ""}
@@ -776,6 +866,35 @@ class RemoteStudioPanel extends HTMLElement {
         padding: 8px 18px; border-radius: 999px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         z-index: 10;
+      }
+
+      /* Page header gets a flexible row so the test toggle pins right. */
+      .page-header.with-back { align-items: center; justify-content: flex-start; }
+      .header-info { flex: 1; }
+      .test-toggle {
+        display: inline-flex; align-items: center; gap: 8px;
+        cursor: pointer; user-select: none;
+        padding: 6px 12px; border-radius: 999px;
+        background: var(--secondary-background-color, #f4f4f4);
+        border: 1px solid var(--divider-color, #e0e0e0);
+        font-size: 0.85rem;
+      }
+      .test-toggle input { accent-color: var(--primary-color, #5b8def); }
+
+      /* Candidate list */
+      .candidate-list { display: flex; flex-direction: column; gap: 8px; }
+      .candidate {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 16px; padding: 12px 16px;
+        background: var(--card-background-color, #fff);
+        border: 1px solid var(--divider-color, #e0e0e0);
+        border-radius: 12px;
+      }
+      .candidate-actions select {
+        font: inherit; padding: 6px 10px; border-radius: 8px;
+        border: 1px solid var(--divider-color, #e0e0e0);
+        background: var(--secondary-background-color, #fafafa);
+        color: inherit;
       }
     `;
   }

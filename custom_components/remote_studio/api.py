@@ -60,25 +60,45 @@ async def ws_list_remotes(
     device_reg = dr.async_get(hass)
 
     remotes: list[dict[str, Any]] = []
+    candidates: list[dict[str, Any]] = []
+    known_zigbee_domains = {"zha", "mqtt", "zigbee", "zigbee2mqtt", "matter"}
+
     for device in device_reg.devices.values():
         matches = registry.find_for_device(device.manufacturer, device.model)
-        if not matches:
+        if matches:
+            chosen = matches[0]
+            remotes.append(
+                {
+                    "device_id": device.id,
+                    "device_name": device.name_by_user or device.name,
+                    "manufacturer": device.manufacturer,
+                    "model": device.model,
+                    "definition_id": chosen.id,
+                }
+            )
             continue
-        chosen = matches[0]
-        remotes.append(
-            {
-                "device_id": device.id,
-                "device_name": device.name_by_user or device.name,
-                "manufacturer": device.manufacturer,
-                "model": device.model,
-                "definition_id": chosen.id,
-            }
-        )
+
+        # Surface devices that look like Zigbee/Matter peripherals but didn't
+        # match any built-in definition, so the user can pair them manually
+        # with a layout of their choice.
+        if not device.manufacturer:
+            continue
+        domains = {ident[0] for ident in (device.identifiers or set())}
+        if domains & known_zigbee_domains:
+            candidates.append(
+                {
+                    "device_id": device.id,
+                    "device_name": device.name_by_user or device.name,
+                    "manufacturer": device.manufacturer,
+                    "model": device.model,
+                }
+            )
 
     connection.send_result(
         msg["id"],
         {
             "remotes": remotes,
+            "candidates": candidates,
             "definitions": [_serialise_definition(d) for d in registry.all()],
         },
     )
