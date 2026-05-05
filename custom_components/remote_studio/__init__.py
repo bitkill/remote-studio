@@ -7,6 +7,7 @@ import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
+from . import api
 from .const import DOMAIN
 from .registry import async_get_registry
 from .runtime import async_get_runtime, async_stop_runtime
@@ -22,6 +23,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await async_get_store(hass)
     await async_get_registry(hass)
     await async_get_runtime(hass)
+    if not hass.data[DOMAIN].get("ws_registered"):
+        await api.async_register(hass)
+        hass.data[DOMAIN]["ws_registered"] = True
     _LOGGER.debug("Remote Studio entry %s set up", entry.entry_id)
     return True
 
