@@ -13,7 +13,28 @@
 
 const WS_LIST = "remote_studio/list_remotes";
 const WS_GET = "remote_studio/get_remote";
+const WS_SAVE = "remote_studio/save_mapping";
+const WS_CLEAR = "remote_studio/clear_mapping";
+const WS_TEST = "remote_studio/test_action";
 const WS_SUBSCRIBE = "remote_studio/subscribe_events";
+
+const ACTION_TEMPLATES = {
+  service: [
+    {
+      service: "light.turn_on",
+      target: { entity_id: "light.REPLACE_ME" },
+    },
+  ],
+  scene: [{ service: "scene.turn_on", target: { entity_id: "scene.REPLACE_ME" } }],
+  script: [{ service: "script.turn_on", target: { entity_id: "script.REPLACE_ME" } }],
+  automation: [
+    {
+      service: "automation.trigger",
+      target: { entity_id: "automation.REPLACE_ME" },
+    },
+  ],
+  delay: [{ delay: { seconds: 1 } }],
+};
 
 class RemoteStudioPanel extends HTMLElement {
   constructor() {
@@ -27,6 +48,11 @@ class RemoteStudioPanel extends HTMLElement {
     this._definitions = [];
     this._currentRemote = null; // { device, definition, svg, mappings }
     this._selectedButtonId = null;
+    this._selectedStateId = null;
+    this._editorText = "";
+    this._editorError = null;
+    this._editorDirty = false;
+    this._toast = null;
     this._error = null;
 
     this._eventUnsub = null;
@@ -95,9 +121,12 @@ class RemoteStudioPanel extends HTMLElement {
         device_id: deviceId,
       });
       this._currentRemote = result;
-      // Pre-select the first button for convenience.
+      // Pre-select the first button + first state for convenience.
       if (result.definition?.buttons?.length) {
         this._selectedButtonId = result.definition.buttons[0].id;
+        this._selectedStateId =
+          result.definition.buttons[0].states?.[0]?.id ?? null;
+        this._loadEditorFromMapping();
       }
     } catch (err) {
       this._error =
@@ -202,11 +231,211 @@ class RemoteStudioPanel extends HTMLElement {
         this._selectButton(el.dataset.buttonId),
       );
     });
+    root.querySelectorAll("[data-state-id]").forEach((el) => {
+      el.addEventListener("click", () =>
+        this._selectState(el.dataset.stateId),
+      );
+    });
+    this._wireEditor();
+  }
+
+  _wireEditor() {
+    const root = this.shadowRoot;
+    const textarea = root.querySelector(".editor-text");
+    if (textarea) {
+      textarea.addEventListener("input", (e) =>
+        this._onEditorInput(e.target.value),
+      );
+    }
+    root.querySelectorAll("[data-template]").forEach((btn) => {
+      btn.addEventListener("click", () =>
+        this._insertTemplate(btn.dataset.template),
+      );
+    });
+    root.querySelectorAll("[data-act]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const act = btn.dataset.act;
+        if (act === "save") this._saveActions();
+        else if (act === "test") this._testActions();
+        else if (act === "clear") this._clearActions();
+      });
+    });
   }
 
   _selectButton(buttonId) {
     this._selectedButtonId = buttonId;
+    const btn = this._currentRemote?.definition?.buttons?.find(
+      (b) => b.id === buttonId,
+    );
+    this._selectedStateId = btn?.states?.[0]?.id ?? null;
+    this._loadEditorFromMapping();
     this._render();
+  }
+
+  _selectState(stateId) {
+    this._selectedStateId = stateId;
+    this._loadEditorFromMapping();
+    this._render();
+  }
+
+  // -------------------------------------------------------- editor
+  _loadEditorFromMapping() {
+    const actions = this._currentActions();
+    this._editorText = actions.length
+      ? JSON.stringify(actions, null, 2)
+      : "";
+    this._editorError = null;
+    this._editorDirty = false;
+  }
+
+  _currentActions() {
+    if (!this._currentRemote || !this._selectedButtonId || !this._selectedStateId)
+      return [];
+    return (
+      this._currentRemote.mappings?.[this._selectedButtonId]?.[
+        this._selectedStateId
+      ] || []
+    );
+  }
+
+  _parseEditor() {
+    const text = (this._editorText || "").trim();
+    if (!text) return [];
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch (err) {
+      throw new Error(`Invalid JSON: ${err.message}`);
+    }
+    if (!Array.isArray(parsed)) {
+      throw new Error("Action list must be a JSON array.");
+    }
+    return parsed;
+  }
+
+  async _saveActions() {
+    let actions;
+    try {
+      actions = this._parseEditor();
+    } catch (err) {
+      this._editorError = err.message;
+      this._render();
+      return;
+    }
+    try {
+      await this._hass.connection.sendMessagePromise({
+        type: WS_SAVE,
+        device_id: this._currentRemote.device.id,
+        button_id: this._selectedButtonId,
+        state_id: this._selectedStateId,
+        actions,
+      });
+      this._setMappingLocal(actions);
+      this._editorDirty = false;
+      this._editorError = null;
+      this._showToast("Saved");
+    } catch (err) {
+      this._editorError =
+        (err && (err.message || err.code)) || "Save failed.";
+    }
+    this._render();
+  }
+
+  async _clearActions() {
+    try {
+      await this._hass.connection.sendMessagePromise({
+        type: WS_CLEAR,
+        device_id: this._currentRemote.device.id,
+        button_id: this._selectedButtonId,
+        state_id: this._selectedStateId,
+      });
+      this._setMappingLocal([]);
+      this._editorText = "";
+      this._editorDirty = false;
+      this._editorError = null;
+      this._showToast("Cleared");
+    } catch (err) {
+      this._editorError =
+        (err && (err.message || err.code)) || "Clear failed.";
+    }
+    this._render();
+  }
+
+  async _testActions() {
+    let actions;
+    try {
+      actions = this._parseEditor();
+    } catch (err) {
+      this._editorError = err.message;
+      this._render();
+      return;
+    }
+    if (!actions.length) {
+      this._editorError = "Nothing to test — add at least one action.";
+      this._render();
+      return;
+    }
+    try {
+      await this._hass.connection.sendMessagePromise({
+        type: WS_TEST,
+        actions,
+      });
+      this._showToast("Triggered");
+    } catch (err) {
+      this._editorError =
+        (err && (err.message || err.code)) || "Test failed.";
+      this._render();
+    }
+  }
+
+  _setMappingLocal(actions) {
+    if (!this._currentRemote) return;
+    const mappings = { ...(this._currentRemote.mappings || {}) };
+    const buttonMap = { ...(mappings[this._selectedButtonId] || {}) };
+    if (actions.length) {
+      buttonMap[this._selectedStateId] = actions;
+      mappings[this._selectedButtonId] = buttonMap;
+    } else {
+      delete buttonMap[this._selectedStateId];
+      if (Object.keys(buttonMap).length) {
+        mappings[this._selectedButtonId] = buttonMap;
+      } else {
+        delete mappings[this._selectedButtonId];
+      }
+    }
+    this._currentRemote = { ...this._currentRemote, mappings };
+  }
+
+  _insertTemplate(name) {
+    const tpl = ACTION_TEMPLATES[name];
+    if (!tpl) return;
+    let current;
+    try {
+      current = this._editorText.trim() ? this._parseEditor() : [];
+    } catch (_) {
+      current = [];
+    }
+    const merged = [...current, ...tpl];
+    this._editorText = JSON.stringify(merged, null, 2);
+    this._editorDirty = true;
+    this._editorError = null;
+    this._render();
+  }
+
+  _onEditorInput(value) {
+    this._editorText = value;
+    this._editorDirty = true;
+    this._editorError = null;
+    // No re-render — keep cursor stable.
+  }
+
+  _showToast(message) {
+    this._toast = message;
+    if (this._toastTimer) clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => {
+      this._toast = null;
+      this._render();
+    }, 1800);
   }
 
   // -------------------------------------------------------- views
@@ -283,13 +512,21 @@ class RemoteStudioPanel extends HTMLElement {
     const stateRows = (selectedButton?.states || [])
       .map((s) => {
         const actions = mappings?.[selectedButton.id]?.[s.id] || [];
+        const isSelected = s.id === this._selectedStateId;
         return `
-          <div class="state-row">
+          <div
+            class="state-row ${isSelected ? "selected" : ""}"
+            data-state-id="${escapeAttr(s.id)}"
+          >
             <div class="state-label">${escapeHtml(s.label || s.id)}</div>
             <div class="state-summary">${describeActions(actions)}</div>
           </div>`;
       })
       .join("");
+
+    const editor = selectedButton && this._selectedStateId
+      ? this._renderEditor(selectedButton)
+      : "";
 
     return `
       <header class="page-header with-back">
@@ -300,6 +537,7 @@ class RemoteStudioPanel extends HTMLElement {
         </div>
       </header>
       ${this._error ? `<div class="error">${escapeHtml(this._error)}</div>` : ""}
+      ${this._toast ? `<div class="toast">${escapeHtml(this._toast)}</div>` : ""}
       <div class="remote-layout">
         <div class="remote-stage">${svg || '<div class="empty">No SVG layout for this remote.</div>'}</div>
         <aside class="remote-side">
@@ -309,11 +547,43 @@ class RemoteStudioPanel extends HTMLElement {
             selectedButton
               ? `
             <h2>${escapeHtml(selectedButton.label || selectedButton.id)} states</h2>
-            <div class="state-list">${stateRows}</div>
-            <p class="hint">Click a state to assign actions (action editor coming next).</p>`
+            <div class="state-list">${stateRows}</div>`
               : ""
           }
+          ${editor}
         </aside>
+      </div>
+    `;
+  }
+
+  _renderEditor(selectedButton) {
+    const stateLabel =
+      selectedButton.states.find((s) => s.id === this._selectedStateId)
+        ?.label || this._selectedStateId;
+    return `
+      <div class="editor">
+        <div class="editor-header">
+          <h2>Actions for ${escapeHtml(selectedButton.label || selectedButton.id)} · ${escapeHtml(stateLabel)}</h2>
+          ${this._editorDirty ? '<span class="dirty">unsaved</span>' : ""}
+        </div>
+        <div class="quick-insert">
+          <span>Insert:</span>
+          <button data-template="service">Service call</button>
+          <button data-template="scene">Scene</button>
+          <button data-template="script">Script</button>
+          <button data-template="automation">Trigger automation</button>
+          <button data-template="delay">Delay</button>
+        </div>
+        <textarea class="editor-text" spellcheck="false"
+          placeholder='Empty — use Insert above, or paste a JSON action list.'
+        >${escapeHtml(this._editorText)}</textarea>
+        ${this._editorError ? `<div class="editor-error">${escapeHtml(this._editorError)}</div>` : ""}
+        <div class="editor-actions">
+          <button class="primary" data-act="save">Save</button>
+          <button data-act="test">Test</button>
+          <button data-act="clear">Clear</button>
+        </div>
+        <p class="hint">JSON list of action steps (matches HA's automation <code>action:</code> block). YAML editor coming later.</p>
       </div>
     `;
   }
@@ -427,6 +697,85 @@ class RemoteStudioPanel extends HTMLElement {
       .rs-button.is-pulsing path.btn-shape {
         fill: var(--rs-btn-pulse-fill, #ffd66e) !important;
         transition: fill 80ms ease-out;
+      }
+
+      /* State rows */
+      .state-row { cursor: pointer; transition: background 80ms ease-out; }
+      .state-row.selected {
+        border-color: var(--primary-color, #5b8def);
+        background: var(--primary-color-light, #e3edff);
+      }
+      .state-row:hover { filter: brightness(0.97); }
+
+      /* Action editor */
+      .editor {
+        margin-top: 24px;
+        padding: 16px;
+        background: var(--card-background-color, #fff);
+        border: 1px solid var(--divider-color, #e0e0e0);
+        border-radius: 12px;
+      }
+      .editor-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+      .editor-header h2 { margin: 0; font-size: 0.95rem; }
+      .dirty {
+        font-size: 0.75rem;
+        background: var(--warning-color, #ffb74d);
+        color: var(--text-primary-color, #fff);
+        padding: 2px 8px; border-radius: 999px;
+      }
+      .quick-insert {
+        display: flex; flex-wrap: wrap; gap: 6px;
+        margin-bottom: 8px; align-items: center;
+        font-size: 0.85rem;
+      }
+      .quick-insert span { opacity: 0.7; margin-right: 4px; }
+      .quick-insert button {
+        font: inherit; font-size: 0.8rem;
+        background: var(--secondary-background-color, #f4f4f4);
+        border: 1px solid var(--divider-color, #e0e0e0);
+        color: inherit;
+        padding: 3px 10px; border-radius: 999px;
+        cursor: pointer;
+      }
+      .quick-insert button:hover { filter: brightness(0.96); }
+      .editor-text {
+        width: 100%; min-height: 180px; box-sizing: border-box;
+        padding: 12px; font-family: ui-monospace, SFMono-Regular, monospace;
+        font-size: 0.85rem;
+        background: var(--secondary-background-color, #fafafa);
+        color: inherit;
+        border: 1px solid var(--divider-color, #e0e0e0);
+        border-radius: 8px;
+        resize: vertical;
+      }
+      .editor-error {
+        margin-top: 8px;
+        padding: 8px 12px;
+        background: var(--error-color, #e57373); color: white;
+        border-radius: 8px; font-size: 0.85rem;
+      }
+      .editor-actions { display: flex; gap: 8px; margin-top: 12px; }
+      .editor-actions button {
+        font: inherit;
+        background: var(--secondary-background-color, #f4f4f4);
+        border: 1px solid var(--divider-color, #e0e0e0);
+        color: inherit;
+        padding: 6px 14px; border-radius: 8px; cursor: pointer;
+      }
+      .editor-actions button.primary {
+        background: var(--primary-color, #5b8def);
+        color: var(--text-primary-color, #fff);
+        border-color: transparent;
+      }
+      .editor-actions button:hover { filter: brightness(0.96); }
+
+      .toast {
+        position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+        background: var(--primary-text-color, #222);
+        color: var(--card-background-color, #fff);
+        padding: 8px 18px; border-radius: 999px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10;
       }
     `;
   }
