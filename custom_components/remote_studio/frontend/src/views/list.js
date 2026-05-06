@@ -19,13 +19,6 @@ export function renderList() {
     .map((r) => renderCard(r, definitionsById))
     .join("");
 
-  const defs = this._definitions
-    .map(
-      (d) =>
-        `<li><strong>${escapeHtml(d.name)}</strong> <small>(${d.buttons.length} buttons)</small></li>`,
-    )
-    .join("");
-
   const layoutOptions = this._definitions
     .map(
       (d) =>
@@ -70,10 +63,6 @@ export function renderList() {
         </section>`
         : ""
     }
-    <section>
-      <h2>Available layouts</h2>
-      ${this._definitions.length ? `<ul>${defs}</ul>` : "<p>No layouts loaded.</p>"}
-    </section>
   `;
 }
 
