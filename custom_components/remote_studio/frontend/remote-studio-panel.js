@@ -11,6 +11,7 @@
  * The action editor (per-state action list) is wired in a follow-up commit.
  */
 
+const PANEL_BASE = "remote-studio";
 const WS_LIST = "remote_studio/list_remotes";
 const WS_GET = "remote_studio/get_remote";
 const WS_SAVE = "remote_studio/save_mapping";
@@ -85,6 +86,7 @@ class RemoteStudioPanel extends HTMLElement {
     this.attachShadow({ mode: "open" });
 
     this._hass = null;
+    this._route = null;
     this._view = "list"; // 'list' | 'remote'
     this._listLoaded = false;
     this._remotes = [];
@@ -106,10 +108,29 @@ class RemoteStudioPanel extends HTMLElement {
 
   // -------------------------------------------------------- lifecycle
   connectedCallback() {
+    this._popstateHandler = () => {
+      // Mirror window.location back into _route so browser back/forward
+      // navigation re-syncs the panel state, in case HA's own routing
+      // didn't propagate the change.
+      const pathname = window.location.pathname;
+      const prefix = `/${PANEL_BASE}`;
+      if (pathname.startsWith(prefix)) {
+        this._route = {
+          ...(this._route || {}),
+          path: pathname.slice(prefix.length),
+        };
+      }
+      if (this._hass) this._syncFromRoute();
+    };
+    window.addEventListener("popstate", this._popstateHandler);
     this._render();
   }
 
   disconnectedCallback() {
+    if (this._popstateHandler) {
+      window.removeEventListener("popstate", this._popstateHandler);
+      this._popstateHandler = null;
+    }
     if (this._eventUnsub) {
       try {
         this._eventUnsub();
@@ -128,11 +149,24 @@ class RemoteStudioPanel extends HTMLElement {
     if (wasNull && hass) {
       if (!this._listLoaded) this._loadRemotes();
       this._subscribeEvents();
+      this._syncFromRoute();
     }
   }
 
   get hass() {
     return this._hass;
+  }
+
+  // HA passes the URL state to custom panels via `route`. The path is the
+  // portion after the panel root, e.g. "/abc123" when the URL is
+  // /remote-studio/abc123.
+  set route(value) {
+    this._route = value;
+    if (this._hass) this._syncFromRoute();
+  }
+
+  get route() {
+    return this._route;
   }
 
   // ------------------------------------------------------- data load
@@ -157,18 +191,74 @@ class RemoteStudioPanel extends HTMLElement {
     this._render();
   }
 
-  async _openRemote(deviceId, definitionId) {
+  // Click handlers call this; it just updates the URL. The route setter
+  // takes over and triggers `_loadRemote`.
+  _openRemote(deviceId, definitionId) {
+    let path = `/${encodeURIComponent(deviceId)}`;
+    if (definitionId) path += `:${encodeURIComponent(definitionId)}`;
+    this._navigate(path);
+  }
+
+  _backToList() {
+    this._navigate("");
+  }
+
+  _navigate(path) {
+    const url = `/${PANEL_BASE}${path}`;
+    if (window.location.pathname + window.location.search === url) return;
+    window.history.pushState({}, "", url);
+    window.dispatchEvent(
+      new CustomEvent("location-changed", {
+        bubbles: true,
+        composed: true,
+        detail: { replace: false },
+      }),
+    );
+  }
+
+  _syncFromRoute() {
+    const rawPath = (this._route?.path || "").replace(/^\//, "");
+    if (!rawPath) {
+      if (this._view !== "list") {
+        this._view = "list";
+        this._currentRemote = null;
+        this._selectedButtonId = null;
+        this._selectedStateId = null;
+        this._error = null;
+      }
+      this._render();
+      return;
+    }
+    // Path encodes the device id and (optionally) a layout override:
+    //   <device_id>            — auto-matched layout
+    //   <device_id>:<def_id>   — manual layout pairing
+    const [encodedDevice, encodedDef] = rawPath.split(":", 2);
+    const deviceId = decodeURIComponent(encodedDevice);
+    const definitionId = encodedDef ? decodeURIComponent(encodedDef) : undefined;
+
+    const sameDevice = this._currentRemote?.device?.id === deviceId;
+    const sameDefinition =
+      !definitionId ||
+      this._currentRemote?.definition?.id === definitionId;
+    if (this._view === "remote" && sameDevice && sameDefinition) {
+      // Already showing the right remote; nothing to do.
+      return;
+    }
+    this._view = "remote";
+    this._loadRemote(deviceId, definitionId);
+  }
+
+  async _loadRemote(deviceId, definitionId) {
     this._error = null;
     this._currentRemote = null;
     this._selectedButtonId = null;
-    this._view = "remote";
+    this._selectedStateId = null;
     this._render();
     try {
       const msg = { type: WS_GET, device_id: deviceId };
       if (definitionId) msg.definition_id = definitionId;
       const result = await this._hass.connection.sendMessagePromise(msg);
       this._currentRemote = result;
-      // Pre-select the first button + first state for convenience.
       if (result.definition?.buttons?.length) {
         this._selectedButtonId = result.definition.buttons[0].id;
         this._selectedStateId =
@@ -179,14 +269,6 @@ class RemoteStudioPanel extends HTMLElement {
       this._error =
         (err && (err.message || err.code)) || "Failed to load remote.";
     }
-    this._render();
-  }
-
-  _backToList() {
-    this._view = "list";
-    this._currentRemote = null;
-    this._selectedButtonId = null;
-    this._error = null;
     this._render();
   }
 
