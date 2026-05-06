@@ -7,7 +7,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import Context, HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.script import Script
 
@@ -59,9 +59,41 @@ async def ws_list_remotes(
     registry = await async_get_registry(hass)
     device_reg = dr.async_get(hass)
 
+    entity_reg = er.async_get(hass)
+
     remotes: list[dict[str, Any]] = []
     candidates: list[dict[str, Any]] = []
-    known_zigbee_domains = {"zha", "mqtt", "zigbee", "zigbee2mqtt", "matter"}
+    known_radio_domains = {"zha", "mqtt", "zigbee", "zigbee2mqtt", "matter"}
+    # If a device has any of these entities, it isn't a remote — it's a
+    # controllable thing like a bulb, plug, climate, etc.
+    DISQUALIFYING_DOMAINS = {
+        "light",
+        "switch",
+        "climate",
+        "cover",
+        "fan",
+        "media_player",
+        "vacuum",
+        "lock",
+        "humidifier",
+        "water_heater",
+        "siren",
+        "valve",
+        "alarm_control_panel",
+        "camera",
+        "lawn_mower",
+        "number",
+        "select",
+    }
+    REMOTE_NAME_KEYWORDS = (
+        "remote",
+        "dimmer",
+        "button",
+        "controller",
+        "wand",
+        "fob",
+        "switch",  # Aqara/Xiaomi battery-powered "switches" (no switch entity)
+    )
 
     for device in device_reg.devices.values():
         matches = registry.find_for_device(device.manufacturer, device.model)
@@ -78,21 +110,44 @@ async def ws_list_remotes(
             )
             continue
 
-        # Surface devices that look like Zigbee/Matter peripherals but didn't
-        # match any built-in definition, so the user can pair them manually
-        # with a layout of their choice.
         if not device.manufacturer:
             continue
         domains = {ident[0] for ident in (device.identifiers or set())}
-        if domains & known_zigbee_domains:
-            candidates.append(
-                {
-                    "device_id": device.id,
-                    "device_name": device.name_by_user or device.name,
-                    "manufacturer": device.manufacturer,
-                    "model": device.model,
-                }
-            )
+        if not (domains & known_radio_domains):
+            continue
+
+        entries = er.async_entries_for_device(
+            entity_reg, device.id, include_disabled_entities=False
+        )
+        entity_domains = {e.domain for e in entries}
+        if entity_domains & DISQUALIFYING_DOMAINS:
+            continue
+
+        # Strong signal: a Matter button surfaces as `event` entities.
+        is_remote = "event" in entity_domains
+        # Weaker signal: battery-powered sensor-only device with a remote-ish
+        # name (covers ZHA/Z2M remotes which only register a battery sensor).
+        if not is_remote:
+            text = " ".join(
+                (
+                    device.name_by_user or "",
+                    device.name or "",
+                    device.model or "",
+                )
+            ).casefold()
+            is_remote = any(kw in text for kw in REMOTE_NAME_KEYWORDS)
+
+        if not is_remote:
+            continue
+
+        candidates.append(
+            {
+                "device_id": device.id,
+                "device_name": device.name_by_user or device.name,
+                "manufacturer": device.manufacturer,
+                "model": device.model,
+            }
+        )
 
     connection.send_result(
         msg["id"],
