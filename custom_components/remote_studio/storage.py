@@ -56,33 +56,36 @@ def _empty_group() -> GroupConfig:
     return {"target": None, "dim_step": DEFAULT_DIM_STEP}
 
 
-async def _migrate(_old_major: int, _old_minor: int, _data: Any) -> StoreData:
-    """v1 → v2 migration: drop legacy data.
+class _RemoteStudioStore(Store[StoreData]):
+    """Subclass so we can hook the v1 → v2 migration.
 
     Pre-1.0 schema stored ``{<device>: {<button>: {<state>: [actions]}}}``.
-    The new shape (target per group + overrides) doesn't have a one-to-one
-    mapping for that data, and we have no real users yet — so we wipe and
-    let people re-pick targets.
+    The new shape doesn't have a one-to-one mapping for that data and we
+    have no real users yet — wipe and let people re-pick targets.
     """
-    _LOGGER.warning(
-        "Remote Studio: dropping legacy v1 mappings on schema upgrade. "
-        "Re-pick targets for each remote in the panel.",
-    )
-    return {}
+
+    async def _async_migrate_func(
+        self, old_major_version: int, _old_minor_version: int, _old_data: Any
+    ) -> StoreData:
+        if old_major_version < STORAGE_VERSION:
+            _LOGGER.warning(
+                "Remote Studio: dropping legacy v%d mappings on schema upgrade. "
+                "Re-pick targets for each remote in the panel.",
+                old_major_version,
+            )
+        return {}
 
 
 class MappingStore:
     """Thin wrapper around HA's Store for the v2 schema."""
 
     def __init__(self, hass: HomeAssistant) -> None:
-        self._store: Store[StoreData] = Store(
+        self._store: Store[StoreData] = _RemoteStudioStore(
             hass,
             STORAGE_VERSION,
             STORAGE_KEY,
             minor_version=1,
             atomic_writes=True,
-            # Drops legacy v1 data on first load — see _migrate.
-            async_migrate_func=_migrate,
         )
         self._data: StoreData = {}
 
