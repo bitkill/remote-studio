@@ -33,10 +33,6 @@ buttons:
         sources:
           zha: { command: "move_with_on_off" }
           z2m: { action: "brightness_move_up" }
-      - id: release
-        label: "Release"
-        sources:
-          zha: { command: "stop_with_on_off" }
 
   - id: "off"
     label: "Off (O)"
@@ -51,7 +47,3 @@ buttons:
         sources:
           zha: { command: "move" }
           z2m: { action: "brightness_move_down" }
-      - id: release
-        label: "Release"
-        sources:
-          zha: { command: "stop" }

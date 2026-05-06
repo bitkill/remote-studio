@@ -27,13 +27,6 @@ buttons:
             command: "move_with_on_off"
           z2m:
             action: "brightness_move_up"
-      - id: release
-        label: "Release"
-        sources:
-          zha:
-            command: "stop_with_on_off"
-          z2m:
-            action: "brightness_stop"
 
   - id: "off"
     label: "Off"
@@ -52,13 +45,6 @@ buttons:
             command: "move"
           z2m:
             action: "brightness_move_down"
-      - id: release
-        label: "Release"
-        sources:
-          zha:
-            command: "stop"
-          z2m:
-            action: "brightness_stop_down"
 
   - id: arrow_left
     label: "Left arrow"
@@ -81,15 +67,6 @@ buttons:
               direction: "left"
           z2m:
             action: "arrow_left_hold"
-      - id: release
-        label: "Release"
-        sources:
-          zha:
-            command: "release"
-            args:
-              direction: "left"
-          z2m:
-            action: "arrow_left_release"
 
   - id: arrow_right
     label: "Right arrow"
@@ -112,12 +89,3 @@ buttons:
               direction: "right"
           z2m:
             action: "arrow_right_hold"
-      - id: release
-        label: "Release"
-        sources:
-          zha:
-            command: "release"
-            args:
-              direction: "right"
-          z2m:
-            action: "arrow_right_release"

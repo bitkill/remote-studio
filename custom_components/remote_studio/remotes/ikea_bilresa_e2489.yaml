@@ -42,11 +42,6 @@ buttons:
         sources:
           matter: { endpoint: 1, event: "long_press" }
           z2m:    { action: "brightness_move_up" }
-      - id: release
-        label: "Release"
-        sources:
-          matter: { endpoint: 1, event: "long_release" }
-          z2m:    { action: "brightness_stop" }
       - id: double
         label: "Double press"
         sources:
@@ -69,11 +64,6 @@ buttons:
         sources:
           matter: { endpoint: 2, event: "long_press" }
           z2m:    { action: "brightness_move_down" }
-      - id: release
-        label: "Release"
-        sources:
-          matter: { endpoint: 2, event: "long_release" }
-          z2m:    { action: "brightness_stop" }
       - id: double
         label: "Double press"
         sources:

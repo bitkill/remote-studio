@@ -12,9 +12,10 @@ from homeassistant.helpers import (
     device_registry as dr,
     entity_registry as er,
 )
-from homeassistant.loader import async_get_integration
+from homeassistant.helpers.config_validation import SCRIPT_SCHEMA
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.script import Script
+from homeassistant.loader import async_get_integration
 
 from .const import DOMAIN
 from .registry import RemoteDefinition, async_get_registry
@@ -476,7 +477,8 @@ async def ws_test_action(
     msg: dict[str, Any],
 ) -> None:
     try:
-        script = Script(hass, msg["actions"], "Remote Studio (test)", DOMAIN)
+        sequence = SCRIPT_SCHEMA(msg["actions"])
+        script = Script(hass, sequence, "Remote Studio (test)", DOMAIN)
         await script.async_run(context=_ws_context(connection))
     except Exception as err:  # noqa: BLE001 — surface error to UI
         connection.send_error(msg["id"], "action_failed", str(err))

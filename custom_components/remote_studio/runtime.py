@@ -21,8 +21,9 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.core import Context, Event, HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers.config_validation import SCRIPT_SCHEMA
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.script import Script
@@ -251,13 +252,18 @@ class EventRuntime:
         actions: list[dict[str, Any]],
     ) -> None:
         try:
+            # Pass through HA's script schema so we end up with the same
+            # validated structure HA's automation engine uses — without
+            # this, raw service-call dicts trip the engine's
+            # 'service_template' fallback at execution time.
+            sequence = SCRIPT_SCHEMA(actions)
             script = Script(
                 self._hass,
-                actions,
+                sequence,
                 f"Remote Studio {device_id}/{button_id}/{state_id}",
                 DOMAIN,
             )
-            await script.async_run(context=None)
+            await script.async_run(context=Context())
         except Exception:  # noqa: BLE001 — surface any user action failure
             _LOGGER.exception(
                 "Action execution failed for %s/%s/%s",

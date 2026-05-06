@@ -29,8 +29,3 @@ buttons:
         sources:
           z2m: { action: "hold" }
           zha: { command: "hold" }
-      - id: release
-        label: "Release"
-        sources:
-          z2m: { action: "release" }
-          zha: { command: "release" }
