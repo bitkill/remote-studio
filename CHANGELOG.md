@@ -1,3 +1,10 @@
+# [0.12.0](https://github.com/bitkill/remote-studio/compare/v0.11.0...v0.12.0) (2026-05-06)
+
+
+### Features
+
+* **panel:** warn when automations already trigger on the same device ([2f045e6](https://github.com/bitkill/remote-studio/commit/2f045e6c490eeb48406d3cc499553087ed14e0e1))
+
 # [0.11.0](https://github.com/bitkill/remote-studio/compare/v0.10.0...v0.11.0) (2026-05-06)
 
 
