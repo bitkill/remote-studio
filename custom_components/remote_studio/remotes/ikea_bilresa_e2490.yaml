@@ -9,52 +9,41 @@ models:
   - BILRESA scroll wheel
 svg: ikea_bilresa_e2490.svg
 
-# The BILRESA scroll wheel is one physical button (the wheel-press) plus
-# the rotating wheel itself, but Matter exposes 9 GenericSwitch endpoints
-# that represent independent "channels". Each channel emits multi_press_1
-# (single), multi_press_2 (double), multi_press_3 (triple). Channels
-# 3, 6 and 9 also expose long_press / long_release for hold gestures.
+# Although Matter exposes 9 GenericSwitch endpoints on the BILRESA, they
+# group as 3 physical "dots" × 3 slots:
 #
-# We expose all nine channels as separate buttons so each can carry its
-# own action mapping. Users select a channel on the physical remote via
-# the firmware's channel-switching gesture.
+#   Dot 1 → endpoint 1 (CW tick) · endpoint 2 (CCW tick) · endpoint 3 (press)
+#   Dot 2 → endpoint 4 (CW tick) · endpoint 5 (CCW tick) · endpoint 6 (press)
+#   Dot 3 → endpoint 7 (CW tick) · endpoint 8 (CCW tick) · endpoint 9 (press)
+#
+# We surface the 3 dots only — each as a button with rotate / press
+# gestures — so users see a layout that matches the physical remote.
+# Source: bilresa_three_light_dimmer_v2.yaml blueprint.
 
 buttons:
-  - id: ch1
-    label: "Channel 1"
+  - id: dot1
+    label: "Dot 1"
     states:
-      - id: single
-        label: "Single press"
+      - id: rotate_cw
+        label: "Rotate clockwise"
         sources:
           matter: { endpoint: 1, event: "multi_press_1" }
+      - id: rotate_ccw
+        label: "Rotate counter-clockwise"
+        sources:
+          matter: { endpoint: 2, event: "multi_press_1" }
+      - id: press
+        label: "Press"
+        sources:
+          matter: { endpoint: 3, event: "multi_press_1" }
       - id: double
         label: "Double press"
         sources:
-          matter: { endpoint: 1, event: "multi_press_2" }
+          matter: { endpoint: 3, event: "multi_press_2" }
       - id: triple
         label: "Triple press"
         sources:
-          matter: { endpoint: 1, event: "multi_press_3" }
-
-  - id: ch2
-    label: "Channel 2"
-    states:
-      - id: single
-        sources: { matter: { endpoint: 2, event: "multi_press_1" } }
-      - id: double
-        sources: { matter: { endpoint: 2, event: "multi_press_2" } }
-      - id: triple
-        sources: { matter: { endpoint: 2, event: "multi_press_3" } }
-
-  - id: ch3
-    label: "Channel 3"
-    states:
-      - id: single
-        sources: { matter: { endpoint: 3, event: "multi_press_1" } }
-      - id: double
-        sources: { matter: { endpoint: 3, event: "multi_press_2" } }
-      - id: triple
-        sources: { matter: { endpoint: 3, event: "multi_press_3" } }
+          matter: { endpoint: 3, event: "multi_press_3" }
       - id: hold
         label: "Hold"
         sources:
@@ -64,70 +53,66 @@ buttons:
         sources:
           matter: { endpoint: 3, event: "long_release" }
 
-  - id: ch4
-    label: "Channel 4"
+  - id: dot2
+    label: "Dot 2"
     states:
-      - id: single
-        sources: { matter: { endpoint: 4, event: "multi_press_1" } }
+      - id: rotate_cw
+        label: "Rotate clockwise"
+        sources:
+          matter: { endpoint: 4, event: "multi_press_1" }
+      - id: rotate_ccw
+        label: "Rotate counter-clockwise"
+        sources:
+          matter: { endpoint: 5, event: "multi_press_1" }
+      - id: press
+        label: "Press"
+        sources:
+          matter: { endpoint: 6, event: "multi_press_1" }
       - id: double
-        sources: { matter: { endpoint: 4, event: "multi_press_2" } }
+        label: "Double press"
+        sources:
+          matter: { endpoint: 6, event: "multi_press_2" }
       - id: triple
-        sources: { matter: { endpoint: 4, event: "multi_press_3" } }
-
-  - id: ch5
-    label: "Channel 5"
-    states:
-      - id: single
-        sources: { matter: { endpoint: 5, event: "multi_press_1" } }
-      - id: double
-        sources: { matter: { endpoint: 5, event: "multi_press_2" } }
-      - id: triple
-        sources: { matter: { endpoint: 5, event: "multi_press_3" } }
-
-  - id: ch6
-    label: "Channel 6"
-    states:
-      - id: single
-        sources: { matter: { endpoint: 6, event: "multi_press_1" } }
-      - id: double
-        sources: { matter: { endpoint: 6, event: "multi_press_2" } }
-      - id: triple
-        sources: { matter: { endpoint: 6, event: "multi_press_3" } }
+        label: "Triple press"
+        sources:
+          matter: { endpoint: 6, event: "multi_press_3" }
       - id: hold
-        sources: { matter: { endpoint: 6, event: "long_press" } }
+        label: "Hold"
+        sources:
+          matter: { endpoint: 6, event: "long_press" }
       - id: release
-        sources: { matter: { endpoint: 6, event: "long_release" } }
+        label: "Release"
+        sources:
+          matter: { endpoint: 6, event: "long_release" }
 
-  - id: ch7
-    label: "Channel 7"
+  - id: dot3
+    label: "Dot 3"
     states:
-      - id: single
-        sources: { matter: { endpoint: 7, event: "multi_press_1" } }
+      - id: rotate_cw
+        label: "Rotate clockwise"
+        sources:
+          matter: { endpoint: 7, event: "multi_press_1" }
+      - id: rotate_ccw
+        label: "Rotate counter-clockwise"
+        sources:
+          matter: { endpoint: 8, event: "multi_press_1" }
+      - id: press
+        label: "Press"
+        sources:
+          matter: { endpoint: 9, event: "multi_press_1" }
       - id: double
-        sources: { matter: { endpoint: 7, event: "multi_press_2" } }
+        label: "Double press"
+        sources:
+          matter: { endpoint: 9, event: "multi_press_2" }
       - id: triple
-        sources: { matter: { endpoint: 7, event: "multi_press_3" } }
-
-  - id: ch8
-    label: "Channel 8"
-    states:
-      - id: single
-        sources: { matter: { endpoint: 8, event: "multi_press_1" } }
-      - id: double
-        sources: { matter: { endpoint: 8, event: "multi_press_2" } }
-      - id: triple
-        sources: { matter: { endpoint: 8, event: "multi_press_3" } }
-
-  - id: ch9
-    label: "Channel 9"
-    states:
-      - id: single
-        sources: { matter: { endpoint: 9, event: "multi_press_1" } }
-      - id: double
-        sources: { matter: { endpoint: 9, event: "multi_press_2" } }
-      - id: triple
-        sources: { matter: { endpoint: 9, event: "multi_press_3" } }
+        label: "Triple press"
+        sources:
+          matter: { endpoint: 9, event: "multi_press_3" }
       - id: hold
-        sources: { matter: { endpoint: 9, event: "long_press" } }
+        label: "Hold"
+        sources:
+          matter: { endpoint: 9, event: "long_press" }
       - id: release
-        sources: { matter: { endpoint: 9, event: "long_release" } }
+        label: "Release"
+        sources:
+          matter: { endpoint: 9, event: "long_release" }

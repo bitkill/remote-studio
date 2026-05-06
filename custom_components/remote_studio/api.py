@@ -203,6 +203,8 @@ async def ws_get_remote(
     except OSError:
         svg_text = None
 
+    battery = _find_battery(hass, device.id)
+
     connection.send_result(
         msg["id"],
         {
@@ -215,8 +217,39 @@ async def ws_get_remote(
             "definition": _serialise_definition(definition),
             "svg": svg_text,
             "mappings": store.device_mappings(device_id),
+            "battery": battery,
         },
     )
+
+
+def _find_battery(hass: HomeAssistant, device_id: str) -> dict[str, Any] | None:
+    """Return {entity_id, state, unit} for the device's battery sensor, if any.
+
+    Picks the first sensor entity belonging to the device whose state has
+    ``device_class == "battery"`` and a numeric state. Skips the battery
+    voltage / battery type sensors so we surface the percentage cleanly.
+    """
+    entity_reg = er.async_get(hass)
+    for entry in er.async_entries_for_device(
+        entity_reg, device_id, include_disabled_entities=False
+    ):
+        if entry.domain != "sensor":
+            continue
+        state = hass.states.get(entry.entity_id)
+        if state is None or state.state in ("unknown", "unavailable"):
+            continue
+        if state.attributes.get("device_class") != "battery":
+            continue
+        try:
+            float(state.state)
+        except (TypeError, ValueError):
+            continue
+        return {
+            "entity_id": entry.entity_id,
+            "state": state.state,
+            "unit": state.attributes.get("unit_of_measurement", "%"),
+        }
+    return None
 
 
 @websocket_api.websocket_command(

@@ -614,6 +614,13 @@ class RemoteStudioPanel extends HTMLElement {
       ? this._renderEditor(selectedButton)
       : "";
 
+    const battery = this._currentRemote.battery;
+    const batteryChip = battery
+      ? `<span class="battery ${batteryClass(battery.state)}" title="${escapeAttr(battery.entity_id)}">
+           ${batterySymbol(battery.state)} ${escapeHtml(battery.state)}${escapeHtml(battery.unit || "%")}
+         </span>`
+      : "";
+
     return `
       <header class="page-header with-back">
         <button class="back">← Back</button>
@@ -621,6 +628,7 @@ class RemoteStudioPanel extends HTMLElement {
           <h1>${escapeHtml(device.name) || "Remote"}</h1>
           <p class="lead">${escapeHtml(definition.name)} · ${escapeHtml(device.manufacturer || "")}</p>
         </div>
+        ${batteryChip}
         <label class="test-toggle">
           <input type="checkbox" ${this._testMode ? "checked" : ""} data-test-toggle />
           <span>Test mode</span>
@@ -881,6 +889,25 @@ class RemoteStudioPanel extends HTMLElement {
       }
       .test-toggle input { accent-color: var(--primary-color, #5b8def); }
 
+      .battery {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 6px 12px; border-radius: 999px;
+        background: var(--secondary-background-color, #f4f4f4);
+        border: 1px solid var(--divider-color, #e0e0e0);
+        font-size: 0.85rem; font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .battery.is-low {
+        background: var(--warning-color, #ffb74d);
+        color: var(--text-primary-color, #fff);
+        border-color: transparent;
+      }
+      .battery.is-critical {
+        background: var(--error-color, #e57373);
+        color: var(--text-primary-color, #fff);
+        border-color: transparent;
+      }
+
       /* Candidate list */
       .candidate-list { display: flex; flex-direction: column; gap: 8px; }
       .candidate {
@@ -917,6 +944,26 @@ function escapeHtml(value) {
 
 function escapeAttr(value) {
   return escapeHtml(value);
+}
+
+function batteryPercent(state) {
+  const n = Number(state);
+  return Number.isFinite(n) ? n : null;
+}
+
+function batterySymbol(state) {
+  const n = batteryPercent(state);
+  if (n === null) return "🔋";
+  if (n <= 10) return "🪫";
+  return "🔋";
+}
+
+function batteryClass(state) {
+  const n = batteryPercent(state);
+  if (n === null) return "";
+  if (n <= 10) return "is-critical";
+  if (n <= 25) return "is-low";
+  return "";
 }
 
 function countConfiguredStates(buttonMappings) {
