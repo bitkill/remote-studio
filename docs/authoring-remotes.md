@@ -46,6 +46,10 @@ buttons:
           z2m: { action: "arrow_left_click" }
 ```
 
+> **Quote `on`, `off`, `yes`, `no`, `true`, `false`** as button or state
+> ids. YAML 1.1 turns those into booleans, which fails string validation
+> and the whole file gets skipped silently. Write `id: "on"` not `id: on`.
+
 ### Each button has one or more states
 
 Common state IDs: `press`, `hold`, `release`, `double`, `single`. Pick names

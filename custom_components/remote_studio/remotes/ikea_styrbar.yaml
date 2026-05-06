@@ -6,7 +6,8 @@ models:
 svg: ikea_styrbar.svg
 
 buttons:
-  - id: on
+  # Quoted because YAML 1.1 parses unquoted on/off/yes/no as booleans.
+  - id: "on"
     label: "On"
     states:
       - id: press
@@ -31,7 +32,7 @@ buttons:
           z2m:
             action: "brightness_stop"
 
-  - id: off
+  - id: "off"
     label: "Off"
     states:
       - id: press
