@@ -310,7 +310,11 @@ export const css = `
     opacity: 1;
     background: var(--secondary-background-color, #f4f4f4);
   }
-  .device-cog svg { width: 18px; height: 18px; fill: currentColor; }
+  .device-cog ha-icon {
+    --mdc-icon-size: 18px;
+    width: 18px; height: 18px;
+    color: currentColor;
+  }
 
   /* ============================ Candidate list ======================= */
   .candidate-list { display: flex; flex-direction: column; gap: 8px; }
