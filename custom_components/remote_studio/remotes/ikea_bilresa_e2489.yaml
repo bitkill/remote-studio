@@ -1,13 +1,19 @@
 id: ikea_bilresa_e2489
 name: IKEA BILRESA (2-button)
-manufacturer: IKEA of Sweden
-# IKEA's Matter remotes register with a few different manufacturer/model
-# strings depending on firmware and integration. Listing the common ones
-# so auto-discovery hits more often; users can still pair manually.
+# Matter-paired IKEA devices report different manufacturer strings depending
+# on firmware ("IKEA", "IKEA of Sweden", "IKEA of Sweden AB",
+# "Inter IKEA Systems B.V."). The matcher does substring contains, so any
+# of these will hit.
+manufacturers:
+  - IKEA
+  - IKEA of Sweden
+  - Inter IKEA Systems
+# Model entries are matched as case-insensitive substrings, so the single
+# token "BILRESA" catches every BILRESA variant ("BILRESA Remote Control",
+# "BILRESA dual button remote control", etc.).
 models:
+  - BILRESA
   - E2489
-  - BILRESA remote control with buttons
-  - BILRESA dual button remote control
 svg: ikea_bilresa_e2489.svg
 
 # BILRESA E2489 over Matter exposes two event entities (one per physical

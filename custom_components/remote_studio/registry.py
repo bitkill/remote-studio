@@ -82,7 +82,10 @@ _REMOTE = vol.Schema(
     {
         vol.Required("id"): str,
         vol.Required("name"): str,
+        # Legacy singular form retained for backwards compatibility; the
+        # plural list is preferred. Either is accepted.
         vol.Optional("manufacturer"): str,
+        vol.Optional("manufacturers", default=list): [str],
         vol.Optional("models", default=list): [str],
         vol.Required("svg"): str,
         vol.Required("buttons"): vol.All([_BUTTON], vol.Length(min=1)),
@@ -109,11 +112,16 @@ class ButtonDef:
 class RemoteDefinition:
     id: str
     name: str
-    manufacturer: str | None
+    manufacturers: tuple[str, ...]
     models: tuple[str, ...]
     svg_path: Path
     buttons: tuple[ButtonDef, ...]
     source_path: Path
+
+    @property
+    def manufacturer(self) -> str | None:
+        """First listed manufacturer, kept for the WS API serialiser."""
+        return self.manufacturers[0] if self.manufacturers else None
 
     # Per-integration indices.
     zha_index: dict[str, list[tuple[str, str, dict[str, Any]]]] = field(
@@ -132,15 +140,25 @@ class RemoteDefinition:
         return bool(self.matter_index)
 
     def matches_device(self, manufacturer: str | None, model: str | None) -> bool:
-        """Return True if this definition fits a device with given manufacturer/model."""
-        if self.manufacturer and manufacturer:
-            if self.manufacturer.casefold() != manufacturer.casefold():
+        """Return True if this definition fits a device with given manufacturer/model.
+
+        - Manufacturer: any of the listed manufacturers must match
+          case-insensitively (substring, so "IKEA" matches "IKEA of Sweden AB").
+        - Model: any of the listed model entries must appear (case-insensitive
+          substring) in the device's model. So "BILRESA" catches every BILRESA
+          variant ("BILRESA dual button remote control", "E2489 BILRESA", etc.).
+        """
+        if self.manufacturers and manufacturer:
+            mfr_cf = manufacturer.casefold()
+            if not any(m.casefold() in mfr_cf or mfr_cf in m.casefold() for m in self.manufacturers):
                 return False
         if self.models and model:
-            return any(m.casefold() == model.casefold() for m in self.models)
-        # If we don't know the device's model but the definition has a
-        # manufacturer match, accept it; the user can correct via the picker.
-        return bool(self.manufacturer and manufacturer)
+            mdl_cf = model.casefold()
+            return any(m.casefold() in mdl_cf for m in self.models)
+        # If we don't know the device's model but the manufacturer matches
+        # (or no manufacturer was declared), accept; user can correct via the
+        # manual layout picker.
+        return bool(self.manufacturers and manufacturer)
 
     def match_zha(
         self, command: str, args: dict[str, Any] | None
@@ -197,10 +215,23 @@ def _build_definition(raw: dict[str, Any], source_path: Path) -> RemoteDefinitio
 
     svg_path = source_path.parent / validated["svg"]
 
+    manufacturers: list[str] = []
+    if validated.get("manufacturer"):
+        manufacturers.append(validated["manufacturer"])
+    manufacturers.extend(validated.get("manufacturers") or [])
+    # Preserve order, drop duplicates (case-insensitive).
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for m in manufacturers:
+        key = m.casefold()
+        if key not in seen:
+            seen.add(key)
+            deduped.append(m)
+
     definition = RemoteDefinition(
         id=validated["id"],
         name=validated["name"],
-        manufacturer=validated.get("manufacturer"),
+        manufacturers=tuple(deduped),
         models=tuple(validated["models"]),
         svg_path=svg_path,
         buttons=tuple(buttons),
