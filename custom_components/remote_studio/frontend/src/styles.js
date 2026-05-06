@@ -43,8 +43,7 @@ export const css = `
   }
   .filter-icon {
     position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
-    color: var(--secondary-text-color, #888);
-    --mdc-icon-size: 18px;
+    fill: var(--secondary-text-color, #888);
     width: 18px; height: 18px;
     pointer-events: none;
   }
@@ -138,10 +137,10 @@ export const css = `
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     display: flex; align-items: center; gap: 4px;
   }
-  .card-meta-soft ha-icon {
-    --mdc-icon-size: 14px;
+  .card-meta-soft svg {
     width: 14px; height: 14px;
     flex-shrink: 0;
+    fill: currentColor;
   }
   .card-chips { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
   .card-chip {
@@ -387,10 +386,9 @@ export const css = `
     opacity: 1;
     background: var(--secondary-background-color, #f4f4f4);
   }
-  .device-cog ha-icon {
-    --mdc-icon-size: 18px;
+  .device-cog svg {
     width: 18px; height: 18px;
-    color: currentColor;
+    fill: currentColor;
   }
 
   /* ============================ Candidate list ======================= */

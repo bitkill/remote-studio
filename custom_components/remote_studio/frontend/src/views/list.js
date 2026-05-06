@@ -5,7 +5,7 @@
  * so it reads state via `this._remotes`, `this._definitions`, etc.
  */
 import { batteryChipHtml, integrationChipHtml } from "../chips.js";
-import { escapeAttr, escapeHtml } from "../helpers.js";
+import { escapeAttr, escapeHtml, mdiIcon } from "../helpers.js";
 
 export function renderList() {
   const definitionsById = new Map(this._definitions.map((d) => [d.id, d]));
@@ -98,7 +98,7 @@ function renderSearchInput(currentValue) {
     : "";
   return `
     <div class="filter-input-wrap">
-      <ha-icon icon="mdi:magnify" class="filter-icon"></ha-icon>
+      ${mdiIcon("magnify", "filter-icon")}
       <input
         type="search"
         class="filter-input"
@@ -129,7 +129,7 @@ function renderCard(remote, definitionsById) {
   // The layout name already conveys make/model — drop the extra
   // "manufacturer · model" line. Show the area instead, if one is set.
   const areaLine = remote.area
-    ? `<div class="card-meta-soft"><ha-icon icon="mdi:floor-plan"></ha-icon>${escapeHtml(remote.area.name)}</div>`
+    ? `<div class="card-meta-soft">${mdiIcon("mapMarker")}${escapeHtml(remote.area.name)}</div>`
     : "";
   return `
     <button class="card" data-device-id="${escapeAttr(remote.device_id)}">

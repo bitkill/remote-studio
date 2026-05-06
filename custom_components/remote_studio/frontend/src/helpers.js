@@ -1,7 +1,7 @@
 /**
  * Stateless utility helpers — escaping, formatting, battery icon picking.
  */
-import { BATTERY_ICONS } from "./constants.js";
+import { BATTERY_ICONS, MDI_PATHS } from "./constants.js";
 
 export function escapeHtml(value) {
   if (value === null || value === undefined) return "";
@@ -45,6 +45,14 @@ export function batteryIcon(state) {
   return `<svg class="battery-icon" viewBox="0 0 24 24" aria-hidden="true">
     <path d="${batteryIconPath(state)}" />
   </svg>`;
+}
+
+// Inline SVG icon using a Material Design Icon path from constants.MDI_PATHS.
+export function mdiIcon(name, className = "") {
+  const path = MDI_PATHS[name];
+  if (!path) return "";
+  const cls = className ? ` class="${className}"` : "";
+  return `<svg viewBox="0 0 24 24" aria-hidden="true"${cls}><path d="${path}" /></svg>`;
 }
 
 export function batteryClass(state) {
