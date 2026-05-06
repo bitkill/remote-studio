@@ -1,5 +1,10 @@
 # Remote Studio
 
+[![Latest release](https://img.shields.io/github/v/release/bitkill/remote-studio?display_name=tag&sort=semver)](https://github.com/bitkill/remote-studio/releases/latest)
+[![Release workflow](https://img.shields.io/github/actions/workflow/status/bitkill/remote-studio/release.yml?branch=main&label=release&logo=github)](https://github.com/bitkill/remote-studio/actions/workflows/release.yml)
+[![HACS custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?logo=home-assistant)](https://hacs.xyz/docs/faq/custom_repositories)
+[![semantic-release](https://img.shields.io/badge/semantic--release-conventionalcommits-e10079?logo=semantic-release)](https://github.com/semantic-release/semantic-release)
+
 A Home Assistant custom integration that lets you configure Zigbee / Matter
 remote controls (IKEA, Philips Hue, Aqara, …) through a friendly visual UI —
 click a button on a picture of the actual remote and pick what it should do.
