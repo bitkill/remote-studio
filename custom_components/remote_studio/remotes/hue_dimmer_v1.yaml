@@ -10,10 +10,15 @@ battery:
   type: CR2450
 svg: hue_dimmer_v1.svg
 
-# Hue Dimmer v1 (RWL021) has four discrete buttons separated by visible
-# seams (vs the v2 which uses a hue-wordmark fourth button). Z2M action
-# strings are the same family as v2; ZHA support requires the Philips
-# manufacturer-specific cluster and is skipped for now.
+# Hue Dimmer v1 (RWL021): four discrete buttons separated by visible
+# seams (vs the v2 which uses a hue-wordmark fourth button).
+#
+# ZHA's Hue quirk normalises the manufacturer-specific cluster into
+# zha_event commands of the form `<button>_<press_type>`, where:
+#   button     ∈ on / up / down / off
+#   press_type ∈ press / short_release / hold / long_release
+# Z2M emits action strings of the same shape (using `press_release`
+# / `hold_release` instead of `short_release` / `long_release`).
 buttons:
   - id: power
     label: "On"
@@ -21,14 +26,17 @@ buttons:
       - id: press
         label: "Press"
         sources:
+          zha: { command: "on_press" }
           z2m: { action: "on_press" }
       - id: hold
         label: "Hold"
         sources:
+          zha: { command: "on_hold" }
           z2m: { action: "on_hold" }
       - id: release
         label: "Release"
         sources:
+          zha: { command: "on_short_release" }
           z2m: { action: "on_press_release" }
 
   - id: bright_up
@@ -36,12 +44,15 @@ buttons:
     states:
       - id: press
         sources:
+          zha: { command: "up_press" }
           z2m: { action: "up_press" }
       - id: hold
         sources:
+          zha: { command: "up_hold" }
           z2m: { action: "up_hold" }
       - id: release
         sources:
+          zha: { command: "up_short_release" }
           z2m: { action: "up_press_release" }
 
   - id: bright_down
@@ -49,12 +60,15 @@ buttons:
     states:
       - id: press
         sources:
+          zha: { command: "down_press" }
           z2m: { action: "down_press" }
       - id: hold
         sources:
+          zha: { command: "down_hold" }
           z2m: { action: "down_hold" }
       - id: release
         sources:
+          zha: { command: "down_short_release" }
           z2m: { action: "down_press_release" }
 
   - id: "off"
@@ -63,12 +77,15 @@ buttons:
       - id: press
         label: "Press"
         sources:
+          zha: { command: "off_press" }
           z2m: { action: "off_press" }
       - id: hold
         label: "Hold"
         sources:
+          zha: { command: "off_hold" }
           z2m: { action: "off_hold" }
       - id: release
         label: "Release"
         sources:
+          zha: { command: "off_short_release" }
           z2m: { action: "off_press_release" }
