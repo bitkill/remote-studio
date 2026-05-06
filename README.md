@@ -32,6 +32,8 @@ full guide at [`docs/authoring-remotes.md`](docs/authoring-remotes.md).
 ### Built-in remotes
 
 - IKEA STYRBAR (Remote Control N2) — ZHA + Z2M
+- IKEA RODRET wireless dimmer (E2201) — ZHA + Z2M
+- IKEA TRÅDFRI on/off switch (E1743) — ZHA + Z2M
 - IKEA BILRESA 2-button (E2489) — Matter + Z2M
 - IKEA BILRESA scroll wheel (E2490) — Matter (3 dots × rotate / press / hold)
 - Philips Hue Dimmer v1 (RWL021) — Z2M

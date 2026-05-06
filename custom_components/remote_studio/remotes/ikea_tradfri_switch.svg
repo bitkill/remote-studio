@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  IKEA TRÅDFRI on/off switch (E1743) — small two-button puck. A
+  rounded rectangle divided horizontally by a seam: top half is the
+  "I" (on) button, bottom half is the "O" (off) button.
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 200 220"
+     role="img"
+     aria-label="IKEA TRÅDFRI on/off switch">
+  <style>
+    .rs-button { cursor: pointer; transition: filter 120ms ease-in-out; }
+    .rs-button:hover rect.btn-shape { fill: #ebe6dc; }
+    .rs-button.is-active rect.btn-shape {
+      fill: var(--rs-btn-active-fill, #d8e8ff);
+    }
+    .rs-button.is-pulsing rect.btn-shape {
+      fill: var(--rs-btn-pulse-fill, #ffd66e);
+      transition: fill 80ms ease-out;
+    }
+    .glyph {
+      fill: none;
+      stroke: #6e6859;
+      stroke-width: 3;
+      stroke-linecap: round;
+      pointer-events: none;
+    }
+  </style>
+
+  <!-- Body silhouette: rounded square puck. -->
+  <rect x="20" y="20" width="160" height="180" rx="22" ry="22"
+        fill="#fafaf6" stroke="#7a7363" stroke-width="1.4" />
+
+  <!-- Top button (I / on) -->
+  <g id="button-on" class="rs-button">
+    <rect class="btn-shape" x="20" y="20" width="160" height="90"
+          rx="22" ry="22" fill="transparent" />
+    <line class="glyph" x1="100" y1="48" x2="100" y2="80" />
+  </g>
+
+  <!-- Visible seam between top and bottom halves -->
+  <line x1="20" y1="110" x2="180" y2="110"
+        stroke="#cfc8bc" stroke-width="1" />
+
+  <!-- Bottom button (O / off) -->
+  <g id="button-off" class="rs-button">
+    <rect class="btn-shape" x="20" y="110" width="160" height="90"
+          rx="22" ry="22" fill="transparent" />
+    <circle class="glyph" cx="100" cy="155" r="13" />
+  </g>
+</svg>

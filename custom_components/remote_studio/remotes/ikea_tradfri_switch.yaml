@@ -1,0 +1,55 @@
+id: ikea_tradfri_switch
+name: IKEA TRÅDFRI on/off switch
+manufacturers:
+  - IKEA
+  - IKEA of Sweden
+models:
+  - E1743
+  - TRADFRI on/off switch
+battery:
+  count: 1
+  type: CR2032
+svg: ikea_tradfri_switch.svg
+
+# Two-button on/off remote with brightness ramping on long-press.
+# Same Z2M caveat as RODRET — Zigbee2MQTT emits a shared
+# 'brightness_stop' action for the release of either button, so the
+# matcher can't tell on-release from off-release. ZHA disambiguates
+# (stop_with_on_off vs stop), so release works on the ZHA side only.
+
+buttons:
+  - id: "on"
+    label: "On (I)"
+    states:
+      - id: press
+        label: "Press"
+        sources:
+          zha: { command: "on" }
+          z2m: { action: "on" }
+      - id: hold
+        label: "Hold"
+        sources:
+          zha: { command: "move_with_on_off" }
+          z2m: { action: "brightness_move_up" }
+      - id: release
+        label: "Release"
+        sources:
+          zha: { command: "stop_with_on_off" }
+
+  - id: "off"
+    label: "Off (O)"
+    states:
+      - id: press
+        label: "Press"
+        sources:
+          zha: { command: "off" }
+          z2m: { action: "off" }
+      - id: hold
+        label: "Hold"
+        sources:
+          zha: { command: "move" }
+          z2m: { action: "brightness_move_down" }
+      - id: release
+        label: "Release"
+        sources:
+          zha: { command: "stop" }

@@ -1,0 +1,57 @@
+id: ikea_rodret
+name: IKEA RODRET wireless dimmer
+manufacturers:
+  - IKEA
+  - IKEA of Sweden
+models:
+  - E2201
+  - RODRET wireless dimmer
+battery:
+  count: 1
+  type: CR2032
+svg: ikea_rodret.svg
+
+# Two-button on/off remote with brightness ramping on long-press.
+#
+# ZHA emits distinct stop commands per button (stop_with_on_off vs stop)
+# so the release state works correctly for ZHA users. Zigbee2MQTT, on the
+# other hand, emits a shared 'brightness_stop' action for both buttons —
+# the matcher can't tell them apart, so the Z2M side only wires press
+# and hold.
+
+buttons:
+  - id: "on"
+    label: "On (I)"
+    states:
+      - id: press
+        label: "Press"
+        sources:
+          zha: { command: "on" }
+          z2m: { action: "on" }
+      - id: hold
+        label: "Hold"
+        sources:
+          zha: { command: "move_with_on_off" }
+          z2m: { action: "brightness_move_up" }
+      - id: release
+        label: "Release"
+        sources:
+          zha: { command: "stop_with_on_off" }
+
+  - id: "off"
+    label: "Off (O)"
+    states:
+      - id: press
+        label: "Press"
+        sources:
+          zha: { command: "off" }
+          z2m: { action: "off" }
+      - id: hold
+        label: "Hold"
+        sources:
+          zha: { command: "move" }
+          z2m: { action: "brightness_move_down" }
+      - id: release
+        label: "Release"
+        sources:
+          zha: { command: "stop" }
