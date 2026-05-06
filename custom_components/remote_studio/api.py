@@ -79,6 +79,104 @@ def _device_area(hass: HomeAssistant, device) -> dict[str, str] | None:
     return {"id": area.id, "name": area.name}
 
 
+def _automations_for_device(
+    hass: HomeAssistant, device_id: str
+) -> list[dict[str, Any]]:
+    """Return automations whose triggers fire from the given device.
+
+    A warning is surfaced in the device view so the user knows that any
+    action they wire here will run alongside an existing automation —
+    common cause of "the light flips twice on a press" bugs.
+
+    Match heuristics (any one is enough):
+      • device-trigger with our `device_id`
+      • event-trigger whose `event_data.device_id` is ours (e.g. zha_event)
+      • state-trigger on an entity that belongs to the device (Matter
+        event entities, Z2M action sensors, …)
+      • blueprint automation that takes our `device_id` as an input value
+    """
+    # Avoid the import at module top — `automation` is not in our
+    # `dependencies`, so it might not be loaded if the user removed it.
+    try:
+        from homeassistant.components.automation import (  # type: ignore[import-not-found]
+            DOMAIN as AUTOMATION_DOMAIN,
+        )
+    except ImportError:
+        return []
+
+    component = hass.data.get(AUTOMATION_DOMAIN)
+    if component is None:
+        return []
+
+    entity_reg = er.async_get(hass)
+    device_entity_ids = {
+        e.entity_id
+        for e in er.async_entries_for_device(
+            entity_reg, device_id, include_disabled_entities=False
+        )
+    }
+
+    matches: list[dict[str, Any]] = []
+    for automation in getattr(component, "entities", []):
+        config = getattr(automation, "raw_config", None) or {}
+        if not isinstance(config, dict):
+            continue
+        if _automation_uses_device(config, device_id, device_entity_ids):
+            matches.append(
+                {
+                    "entity_id": automation.entity_id,
+                    "name": getattr(automation, "name", None) or automation.entity_id,
+                    "unique_id": getattr(automation, "unique_id", None),
+                }
+            )
+    return matches
+
+
+def _automation_uses_device(
+    config: dict[str, Any], device_id: str, device_entity_ids: set[str]
+) -> bool:
+    # Blueprint automations: their inputs include the device id directly.
+    blueprint = config.get("use_blueprint")
+    if isinstance(blueprint, dict):
+        inputs = blueprint.get("input") or {}
+        if isinstance(inputs, dict) and device_id in inputs.values():
+            return True
+
+    # Standard automations: scan the trigger list.
+    triggers = config.get("trigger") or config.get("triggers") or []
+    if isinstance(triggers, dict):
+        triggers = [triggers]
+    if not isinstance(triggers, list):
+        return False
+    return any(
+        _trigger_references_device(t, device_id, device_entity_ids)
+        for t in triggers
+        if isinstance(t, dict)
+    )
+
+
+def _trigger_references_device(
+    trigger: dict[str, Any], device_id: str, device_entity_ids: set[str]
+) -> bool:
+    platform = trigger.get("platform") or trigger.get("trigger")
+
+    if platform == "device" and trigger.get("device_id") == device_id:
+        return True
+
+    if platform == "event":
+        event_data = trigger.get("event_data") or {}
+        if isinstance(event_data, dict) and event_data.get("device_id") == device_id:
+            return True
+
+    if platform == "state":
+        entity_id = trigger.get("entity_id")
+        entity_ids = entity_id if isinstance(entity_id, list) else [entity_id]
+        if any(eid in device_entity_ids for eid in entity_ids):
+            return True
+
+    return False
+
+
 async def _load_svg_cached(
     hass: HomeAssistant, definition: RemoteDefinition
 ) -> str | None:
@@ -276,6 +374,7 @@ async def ws_get_remote(
             "svg": svg_text,
             "mappings": store.device_mappings(device_id),
             "battery": battery,
+            "automations": _automations_for_device(hass, device_id),
         },
     )
 

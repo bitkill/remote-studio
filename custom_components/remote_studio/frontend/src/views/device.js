@@ -46,6 +46,7 @@ export function renderDevice() {
     ${renderHeader.call(this, device, definition)}
     ${this._error ? `<div class="error">${escapeHtml(this._error)}</div>` : ""}
     ${this._toast ? `<div class="toast">${escapeHtml(this._toast)}</div>` : ""}
+    ${renderAutomationWarning(this._currentRemote.automations)}
     <div class="remote-layout">
       <div class="remote-stage">${svg || '<div class="empty">No SVG layout for this remote.</div>'}</div>
       <aside class="remote-side">
@@ -102,6 +103,32 @@ function renderHeader(device, definition) {
         <span>Test mode</span>
       </label>
     </header>`;
+}
+
+function renderAutomationWarning(automations) {
+  if (!Array.isArray(automations) || automations.length === 0) return "";
+  const items = automations
+    .map((a) => {
+      const href = a.unique_id
+        ? `/config/automation/edit/${encodeURIComponent(a.unique_id)}`
+        : "/config/automation/dashboard";
+      return `<li><a href="${escapeAttr(href)}" rel="noopener">${escapeHtml(a.name || a.entity_id)}</a></li>`;
+    })
+    .join("");
+  const lead =
+    automations.length === 1
+      ? "An automation is also triggered by this remote — actions you wire here will run alongside it."
+      : `${automations.length} automations are also triggered by this remote — actions you wire here will run alongside them.`;
+  return `
+    <div class="automation-warning" role="status">
+      <div class="warning-icon" aria-hidden="true">⚠</div>
+      <div class="warning-body">
+        <div class="warning-lead">${escapeHtml(lead)}</div>
+        <ul class="warning-list">${items}</ul>
+        <p class="hint">Either disable / edit the automation, or skip configuring overlapping states here to avoid the action firing twice.</p>
+      </div>
+    </div>
+  `;
 }
 
 function renderButtonRow(button, selectedButton, mappings) {

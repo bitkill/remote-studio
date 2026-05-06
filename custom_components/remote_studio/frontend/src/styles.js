@@ -107,6 +107,33 @@ export const css = `
     padding: 12px 16px; border-radius: 8px; margin-bottom: 16px;
   }
 
+  /* Existing-automation warning on the device view */
+  .automation-warning {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 14px;
+    align-items: start;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--warning-color, #ffa600) 12%, var(--card-background-color, #fff));
+    border: 1px solid color-mix(in srgb, var(--warning-color, #ffa600) 50%, transparent);
+    color: var(--primary-text-color);
+  }
+  .automation-warning .warning-icon {
+    font-size: 1.4rem;
+    line-height: 1;
+    color: var(--warning-color, #ffa600);
+    padding-top: 2px;
+  }
+  .automation-warning .warning-lead { font-weight: 600; margin-bottom: 6px; }
+  .automation-warning .warning-list {
+    margin: 0; padding-left: 20px;
+  }
+  .automation-warning .warning-list li { margin: 2px 0; }
+  .automation-warning .warning-list a { color: inherit; }
+  .automation-warning .hint { margin-top: 6px; }
+
   /* ============================ Cards (home view) ===================== */
   .grid {
     display: grid;
