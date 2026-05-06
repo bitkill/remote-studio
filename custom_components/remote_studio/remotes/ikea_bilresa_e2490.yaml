@@ -25,21 +25,27 @@ svg: ikea_bilresa_e2490.svg
 # We surface 4 states per dot — rotate_cw / rotate_ccw / press / hold —
 # matching the four actions a user actually wires up in practice.
 # (multi_press_2/3 and long_release are dropped to keep the editor tidy.)
+#
+# Each dot is its own group: pick a separate target per dot.
 
 buttons:
   - id: dot1
     label: "Dot 1"
+    group: dot1
     states:
       - id: rotate_cw
         label: "Rotate clockwise"
+        role: dim_up
         sources:
           matter: { endpoint: 1, event: "multi_press_1" }
       - id: rotate_ccw
         label: "Rotate counter-clockwise"
+        role: dim_down
         sources:
           matter: { endpoint: 2, event: "multi_press_1" }
       - id: press
         label: "Press"
+        role: toggle
         sources:
           matter: { endpoint: 3, event: "multi_press_1" }
       - id: hold
@@ -49,17 +55,21 @@ buttons:
 
   - id: dot2
     label: "Dot 2"
+    group: dot2
     states:
       - id: rotate_cw
         label: "Rotate clockwise"
+        role: dim_up
         sources:
           matter: { endpoint: 4, event: "multi_press_1" }
       - id: rotate_ccw
         label: "Rotate counter-clockwise"
+        role: dim_down
         sources:
           matter: { endpoint: 5, event: "multi_press_1" }
       - id: press
         label: "Press"
+        role: toggle
         sources:
           matter: { endpoint: 6, event: "multi_press_1" }
       - id: hold
@@ -69,17 +79,21 @@ buttons:
 
   - id: dot3
     label: "Dot 3"
+    group: dot3
     states:
       - id: rotate_cw
         label: "Rotate clockwise"
+        role: dim_up
         sources:
           matter: { endpoint: 7, event: "multi_press_1" }
       - id: rotate_ccw
         label: "Rotate counter-clockwise"
+        role: dim_down
         sources:
           matter: { endpoint: 8, event: "multi_press_1" }
       - id: press
         label: "Press"
+        role: toggle
         sources:
           matter: { endpoint: 9, event: "multi_press_1" }
       - id: hold

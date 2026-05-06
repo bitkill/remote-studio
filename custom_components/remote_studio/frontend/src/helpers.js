@@ -47,12 +47,15 @@ export function batteryIcon(state) {
   </svg>`;
 }
 
-// Inline SVG icon using a Material Design Icon path from constants.MDI_PATHS.
+// Inline SVG icon. Entries in MDI_PATHS are either a path string (default
+// 24×24 viewBox) or an object with a custom viewBox for non-MDI artwork.
 export function mdiIcon(name, className = "") {
-  const path = MDI_PATHS[name];
-  if (!path) return "";
+  const entry = MDI_PATHS[name];
+  if (!entry) return "";
+  const d = typeof entry === "string" ? entry : entry.d;
+  const viewBox = typeof entry === "string" ? "0 0 24 24" : entry.viewBox;
   const cls = className ? ` class="${className}"` : "";
-  return `<svg viewBox="0 0 24 24" aria-hidden="true"${cls}><path d="${path}" /></svg>`;
+  return `<svg viewBox="${viewBox}" aria-hidden="true"${cls}><path d="${d}" /></svg>`;
 }
 
 export function batteryClass(state) {
@@ -62,16 +65,6 @@ export function batteryClass(state) {
   if (n <= 25) return "is-low";
   if (n >= 80) return "is-good";
   return "";
-}
-
-// Counts how many of a button's states have a non-empty action list saved.
-export function countConfiguredStates(buttonMappings) {
-  if (!buttonMappings) return 0;
-  let n = 0;
-  for (const stateActions of Object.values(buttonMappings)) {
-    if (Array.isArray(stateActions) && stateActions.length > 0) n += 1;
-  }
-  return n;
 }
 
 // One-line summary of an action list — used in the side-panel state rows.

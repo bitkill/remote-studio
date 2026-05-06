@@ -3,20 +3,19 @@
  *
  * Two views, switched by URL:
  *   - list   — discovered remotes + unmatched candidates + layouts
- *   - remote — one remote rendered as inline SVG with the action editor
- *
- * The render functions live in views.js (attached to the prototype below)
- * and the CSS lives in styles.js. Helpers and constants are split into
- * helpers.js, chips.js and constants.js.
+ *   - device — one remote rendered as inline SVG, with per-group target
+ *              cards above and an advanced override editor below.
  */
 import {
+  DEFAULT_DIM_STEP,
   PANEL_BASE,
-  WS_CLEAR,
   WS_GET,
   WS_LIST,
-  WS_SAVE,
+  WS_SET_GROUP,
+  WS_SET_OVERRIDE,
   WS_SUBSCRIBE,
   WS_TEST,
+  WS_TRIGGER,
   actionTemplate,
 } from "./constants.js";
 import { cssEscape } from "./helpers.js";
@@ -40,32 +39,27 @@ export class RemoteStudioPanel extends HTMLElement {
     this._definitions = [];
     this._version = null;
     this._testMode = false;
-    this._currentRemote = null; // { device, definition, svg, mappings, battery }
+    this._currentRemote = null;
     this._selectedButtonId = null;
     this._selectedStateId = null;
+    this._advancedOpen = false;
     this._editorText = "";
     this._editorError = null;
     this._editorDirty = false;
-    this._currentTarget = null;
     this._toast = null;
     this._error = null;
 
     this._eventUnsub = null;
     this._pulseTimers = new Map();
+    this._groupSaveTimers = new Map();
 
     this._filterText = "";
-
-    // Recent matched events from the runtime — shown in the logs section
-    // on each view. Most-recent-first; capped at MAX_EVENT_LOG entries.
     this._eventLog = [];
   }
 
   // ============================================================ lifecycle
   connectedCallback() {
     this._popstateHandler = () => {
-      // Mirror window.location back into _route so browser back/forward
-      // navigation re-syncs the panel state, in case HA's own routing
-      // didn't propagate the change.
       const pathname = window.location.pathname;
       const prefix = `/${PANEL_BASE}`;
       if (pathname.startsWith(prefix)) {
@@ -95,6 +89,8 @@ export class RemoteStudioPanel extends HTMLElement {
     }
     for (const t of this._pulseTimers.values()) clearTimeout(t);
     this._pulseTimers.clear();
+    for (const t of this._groupSaveTimers.values()) clearTimeout(t);
+    this._groupSaveTimers.clear();
   }
 
   // ============================================================ HA props
@@ -105,16 +101,17 @@ export class RemoteStudioPanel extends HTMLElement {
       if (!this._listLoaded) this._loadRemotes();
       this._subscribeEvents();
       this._syncFromRoute();
+      return;
     }
+    // On subsequent updates, push hass through to any live ha-target-picker
+    // elements so their state reflects the latest entity registry.
+    this._syncTargetPickerHass();
   }
 
   get hass() {
     return this._hass;
   }
 
-  // HA passes the URL state to custom panels via `route`. The path is the
-  // portion after the panel root, e.g. "/abc123" when the URL is
-  // /remote-studio/abc123.
   set route(value) {
     this._route = value;
     if (this._hass) this._syncFromRoute();
@@ -138,8 +135,6 @@ export class RemoteStudioPanel extends HTMLElement {
       this._definitions = Array.isArray(result.definitions)
         ? result.definitions
         : [];
-      // Newer backends include `version` in the response; fall back to
-      // HA's built-in manifest endpoint when they don't.
       this._version = result.version || null;
       if (!this._version) {
         this._version = await this._fetchManifestVersion();
@@ -169,6 +164,7 @@ export class RemoteStudioPanel extends HTMLElement {
     this._currentRemote = null;
     this._selectedButtonId = null;
     this._selectedStateId = null;
+    this._advancedOpen = false;
     this._render();
     try {
       const msg = { type: WS_GET, device_id: deviceId };
@@ -179,8 +175,7 @@ export class RemoteStudioPanel extends HTMLElement {
         this._selectedButtonId = result.definition.buttons[0].id;
         this._selectedStateId =
           result.definition.buttons[0].states?.[0]?.id ?? null;
-        this._currentTarget = this._readTarget(this._selectedButtonId);
-        this._loadEditorFromMapping();
+        this._loadEditorFromOverride();
       }
     } catch (err) {
       this._error =
@@ -190,8 +185,6 @@ export class RemoteStudioPanel extends HTMLElement {
   }
 
   // ============================================================ navigation
-  // Click handlers call this; it just updates the URL. The route setter
-  // takes over and triggers `_loadRemote`.
   _openDevice(deviceId, definitionId) {
     let path = `/device/${encodeURIComponent(deviceId)}`;
     if (definitionId) path += `:${encodeURIComponent(definitionId)}`;
@@ -217,27 +210,23 @@ export class RemoteStudioPanel extends HTMLElement {
 
   _syncFromRoute() {
     const rawPath = (this._route?.path || "").replace(/^\//, "");
-
-    // Empty path — index view.
     if (!rawPath) {
       if (this._view !== "index") {
         this._view = "index";
         this._currentRemote = null;
         this._selectedButtonId = null;
         this._selectedStateId = null;
+        this._advancedOpen = false;
         this._error = null;
       }
       this._render();
       return;
     }
-
-    // /device/<device_id>[:<definition_id>]
     if (rawPath.startsWith("device/")) {
       const remainder = rawPath.slice("device/".length);
       const [encodedDevice, encodedDef] = remainder.split(":", 2);
       const deviceId = decodeURIComponent(encodedDevice);
       const definitionId = encodedDef ? decodeURIComponent(encodedDef) : undefined;
-
       const sameDevice = this._currentRemote?.device?.id === deviceId;
       const sameDefinition =
         !definitionId ||
@@ -247,9 +236,6 @@ export class RemoteStudioPanel extends HTMLElement {
       this._loadRemote(deviceId, definitionId);
       return;
     }
-
-    // Unknown path — fall back to index, replacing the URL so back-button
-    // history doesn't get stuck on a 404.
     this._view = "index";
     history.replaceState(null, "", `/${PANEL_BASE}`);
     this._render();
@@ -270,8 +256,6 @@ export class RemoteStudioPanel extends HTMLElement {
 
   _onRemoteEvent(event) {
     if (!event || !event.device_id) return;
-
-    // Append to the log first so both views can refresh from it.
     if (event.button_id && event.state_id) {
       this._eventLog.unshift({
         device_id: event.device_id,
@@ -282,13 +266,10 @@ export class RemoteStudioPanel extends HTMLElement {
       if (this._eventLog.length > 100) this._eventLog.length = 100;
       this._refreshEventLog();
     }
-
-    // Index view: highlight the matching card.
     if (this._view === "index") {
       this._pulseCard(event.device_id);
       return;
     }
-
     if (
       this._view !== "device" ||
       this._currentRemote?.device?.id !== event.device_id ||
@@ -298,8 +279,6 @@ export class RemoteStudioPanel extends HTMLElement {
     }
     this._pulseButton(event.button_id);
     if (event.state_id) {
-      // Auto-jump to the firing button so the user sees its state list and
-      // editor light up in response to physical input.
       if (this._selectedButtonId !== event.button_id) {
         this._selectedButtonId = event.button_id;
         this._render();
@@ -317,7 +296,6 @@ export class RemoteStudioPanel extends HTMLElement {
       `button.card[data-device-id="${cssEscape(deviceId)}"]`,
     );
     if (!card) return;
-    // Restart the animation if it's already running.
     card.classList.remove("is-pulsing");
     void card.offsetWidth;
     card.classList.add("is-pulsing");
@@ -376,48 +354,39 @@ export class RemoteStudioPanel extends HTMLElement {
       const back = root.querySelector(".back");
       if (back) back.addEventListener("click", () => this._backToIndex());
       this._wireSvg();
+      this._wireGroupCards();
       this._wireButtonList();
     }
   }
 
   _wireIndex() {
     const root = this.shadowRoot;
-    root
-      .querySelectorAll("[data-device-id]")
-      .forEach((el) =>
-        el.addEventListener("click", () =>
-          this._openDevice(el.dataset.deviceId),
-        ),
-      );
-    root
-      .querySelectorAll("[data-pair-device]")
-      .forEach((select) =>
-        select.addEventListener("change", (e) => {
-          const definitionId = e.target.value;
-          if (!definitionId) return;
-          this._openDevice(e.target.dataset.pairDevice, definitionId);
-        }),
-      );
-
+    root.querySelectorAll("[data-device-id]").forEach((el) =>
+      el.addEventListener("click", () =>
+        this._openDevice(el.dataset.deviceId),
+      ),
+    );
+    root.querySelectorAll("[data-pair-device]").forEach((select) =>
+      select.addEventListener("change", (e) => {
+        const definitionId = e.target.value;
+        if (!definitionId) return;
+        this._openDevice(e.target.dataset.pairDevice, definitionId);
+      }),
+    );
     const filter = root.querySelector("[data-filter]");
     if (filter) {
-      filter.addEventListener("input", (e) => this._onFilterInput(e.target.value));
-      // Restore caret position after re-render.
-      if (filter.value !== this._filterText) {
-        filter.value = this._filterText;
-      }
-      // Keep focus on the filter as the user types — render() reset it.
+      filter.addEventListener("input", (e) =>
+        this._onFilterInput(e.target.value),
+      );
+      if (filter.value !== this._filterText) filter.value = this._filterText;
       if (this._filterFocused) {
         filter.focus();
         const len = filter.value.length;
         try { filter.setSelectionRange(len, len); } catch (_) {}
       }
     }
-
     const clearBtn = root.querySelector("[data-clear-filter]");
-    if (clearBtn) {
-      clearBtn.addEventListener("click", () => this._onFilterInput(""));
-    }
+    if (clearBtn) clearBtn.addEventListener("click", () => this._onFilterInput(""));
   }
 
   _onFilterInput(value) {
@@ -444,13 +413,182 @@ export class RemoteStudioPanel extends HTMLElement {
     }
   }
 
+  // ----------- group cards: ha-target-picker + dim-step input
+  _wireGroupCards() {
+    const root = this.shadowRoot;
+    if (!root) return;
+    root.querySelectorAll(".group-target-slot").forEach((slot) => {
+      const groupId = slot.dataset.group;
+      const stored = this._currentRemote?.groups?.[groupId];
+      const picker = document.createElement("ha-target-picker");
+      picker.hass = this._hass;
+      picker.value = stored?.target || {};
+      picker.addEventListener("value-changed", (e) => {
+        const value = e.detail?.value;
+        const target = value && Object.keys(value).length ? value : null;
+        this._onGroupTargetChange(groupId, target);
+      });
+      slot.appendChild(picker);
+    });
+    root.querySelectorAll("[data-dim-step]").forEach((input) => {
+      input.addEventListener("change", (e) => {
+        const groupId = e.target.dataset.dimStep;
+        const raw = parseInt(e.target.value, 10);
+        const dimStep = Number.isFinite(raw) && raw >= 1 && raw <= 100
+          ? raw
+          : DEFAULT_DIM_STEP;
+        e.target.value = String(dimStep);
+        this._onDimStepChange(groupId, dimStep);
+      });
+    });
+  }
+
+  _syncTargetPickerHass() {
+    const root = this.shadowRoot;
+    if (!root) return;
+    root.querySelectorAll("ha-target-picker").forEach((picker) => {
+      picker.hass = this._hass;
+    });
+  }
+
+  _onGroupTargetChange(groupId, target) {
+    this._mergeGroupLocal(groupId, { target });
+    this._scheduleGroupSave(groupId);
+    // Refresh button-side state summaries without losing focus on the picker.
+    this._refreshStateRows();
+  }
+
+  _onDimStepChange(groupId, dimStep) {
+    this._mergeGroupLocal(groupId, { dim_step: dimStep });
+    this._scheduleGroupSave(groupId);
+    this._refreshStateRows();
+  }
+
+  _mergeGroupLocal(groupId, patch) {
+    if (!this._currentRemote) return;
+    const groups = { ...(this._currentRemote.groups || {}) };
+    groups[groupId] = { ...(groups[groupId] || {}), ...patch };
+    this._currentRemote = { ...this._currentRemote, groups };
+  }
+
+  // Debounced save so dragging through many entities in the picker doesn't
+  // hammer the WebSocket. 350ms is short enough that test mode after a
+  // pick feels instantaneous.
+  _scheduleGroupSave(groupId) {
+    const existing = this._groupSaveTimers.get(groupId);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      this._groupSaveTimers.delete(groupId);
+      this._saveGroup(groupId);
+    }, 350);
+    this._groupSaveTimers.set(groupId, timer);
+  }
+
+  async _saveGroup(groupId) {
+    if (!this._currentRemote) return;
+    const stored = this._currentRemote.groups?.[groupId] || {};
+    try {
+      await this._hass.connection.sendMessagePromise({
+        type: WS_SET_GROUP,
+        device_id: this._currentRemote.device.id,
+        group_id: groupId,
+        target: stored.target || null,
+        dim_step: stored.dim_step ?? DEFAULT_DIM_STEP,
+      });
+      this._showToast("Saved");
+    } catch (err) {
+      this._showToast(
+        `Save failed: ${(err && (err.message || err.code)) || "error"}`,
+      );
+    }
+  }
+
+  _refreshStateRows() {
+    // The Summary text in each state row depends on the group's target +
+    // dim_step. Re-render the side panel without touching the SVG / picker.
+    const root = this.shadowRoot;
+    const aside = root?.querySelector(".remote-side");
+    if (!aside) return;
+    // Cheapest correct option: full re-render. The picker survives because
+    // it's a property-driven component but losing focus inside its dialog
+    // would be jarring — so we *don't* fully re-render. Instead, replace
+    // each state row's summary by recomputing.
+    const def = this._currentRemote?.definition;
+    const button = def?.buttons?.find((b) => b.id === this._selectedButtonId);
+    if (!button) return;
+    const groupCfg = this._currentRemote?.groups?.[button.group] || {};
+    const dimStep = groupCfg.dim_step ?? DEFAULT_DIM_STEP;
+    const target = groupCfg.target;
+    button.states.forEach((state) => {
+      const row = aside.querySelector(
+        `.state-row[data-state-id="${cssEscape(state.id)}"]`,
+      );
+      if (!row) return;
+      const summaryEl = row.querySelector(".state-summary");
+      if (!summaryEl) return;
+      const override =
+        this._currentRemote?.overrides?.[button.id]?.[state.id];
+      const hasOverride = Array.isArray(override) && override.length > 0;
+      let text;
+      let cls = "default";
+      if (hasOverride) {
+        text = `Override · ${this._describeActionsShort(override)}`;
+        cls = "override";
+      } else if (state.role === "none") {
+        text = "Unbound";
+        cls = "muted";
+      } else if (!target) {
+        text = "Pick a target above";
+        cls = "muted";
+      } else {
+        text = `Default · ${this._describeRole(state.role, target, dimStep)}`;
+      }
+      summaryEl.className = `state-summary ${cls}`;
+      summaryEl.textContent = text;
+    });
+  }
+
+  _describeActionsShort(actions) {
+    if (!Array.isArray(actions) || actions.length === 0) return "Not configured";
+    if (actions.length === 1) {
+      const a = actions[0];
+      if (a.service) return `Call ${a.service}`;
+      if (a.scene) return `Activate scene ${a.scene}`;
+      if (a.delay) return "Delay";
+      return "Custom action";
+    }
+    return `${actions.length} steps`;
+  }
+
+  _describeRole(role, target, dimStep) {
+    const t = this._describeTargetShort(target);
+    switch (role) {
+      case "turn_on": return `Turn on ${t}`;
+      case "turn_off": return `Turn off ${t}`;
+      case "toggle": return `Toggle ${t}`;
+      case "dim_up": return `Brighten ${t} (+${dimStep}%)`;
+      case "dim_down": return `Dim ${t} (-${dimStep}%)`;
+      default: return "Unbound";
+    }
+  }
+
+  _describeTargetShort(target) {
+    if (!target || typeof target !== "object") return "";
+    if (target.entity_id) {
+      return Array.isArray(target.entity_id) ? target.entity_id[0] : target.entity_id;
+    }
+    if (target.device_id) return "device";
+    if (target.area_id) return "area";
+    return "";
+  }
+
+  // ----------- buttons / states / advanced editor
+
   _onSvgButtonClick(buttonId) {
     if (!this._testMode) {
       this._selectButton(buttonId);
       return;
     }
-    // In test mode, fire the configured action for that button's currently
-    // selected state, falling back to the first state if none selected on it.
     const button = this._currentRemote?.definition?.buttons?.find(
       (b) => b.id === buttonId,
     );
@@ -460,21 +598,23 @@ export class RemoteStudioPanel extends HTMLElement {
         ? this._selectedStateId
         : button.states?.[0]?.id;
     if (!stateId) return;
-    const actions =
-      this._currentRemote?.mappings?.[buttonId]?.[stateId] || [];
-    if (!actions.length) {
-      this._showToast(
-        `${button.label || buttonId} / ${stateId} is not configured`,
-      );
-      this._pulseButton(buttonId);
-      return;
-    }
     this._pulseButton(buttonId);
     this._hass.connection
-      .sendMessagePromise({ type: WS_TEST, actions })
-      .then(() =>
-        this._showToast(`Triggered ${button.label || buttonId} / ${stateId}`),
-      )
+      .sendMessagePromise({
+        type: WS_TRIGGER,
+        device_id: this._currentRemote.device.id,
+        button_id: buttonId,
+        state_id: stateId,
+      })
+      .then((res) => {
+        if (res && res.fired === false) {
+          this._showToast(
+            `${button.label || buttonId} / ${stateId} has nothing to fire`,
+          );
+        } else {
+          this._showToast(`Triggered ${button.label || buttonId} / ${stateId}`);
+        }
+      })
       .catch((err) =>
         this._showToast(
           `Test failed: ${(err && (err.message || err.code)) || "error"}`,
@@ -490,11 +630,34 @@ export class RemoteStudioPanel extends HTMLElement {
       );
     });
     root.querySelectorAll("[data-state-id]").forEach((el) => {
-      el.addEventListener("click", () =>
-        this._selectState(el.dataset.stateId),
-      );
+      el.addEventListener("click", () => this._selectState(el.dataset.stateId));
     });
+    this._wireAdvancedToggle();
     this._wireEditor();
+  }
+
+  _wireAdvancedToggle() {
+    // Advanced toggle lives at the bottom of the state list — appended on
+    // demand so it can show "Use advanced override" or "Hide editor".
+    const root = this.shadowRoot;
+    const aside = root?.querySelector(".remote-side");
+    if (!aside) return;
+    if (!this._selectedButtonId || !this._selectedStateId) return;
+    let toggle = aside.querySelector(".advanced-toggle");
+    if (!toggle) {
+      toggle = document.createElement("button");
+      toggle.className = "advanced-toggle";
+      const stateList = aside.querySelector(".state-list");
+      stateList?.after(toggle);
+    }
+    toggle.textContent = this._advancedOpen
+      ? "Hide override editor"
+      : "Use advanced override";
+    toggle.onclick = () => {
+      this._advancedOpen = !this._advancedOpen;
+      if (this._advancedOpen) this._loadEditorFromOverride();
+      this._render();
+    };
   }
 
   _wireEditor() {
@@ -505,12 +668,6 @@ export class RemoteStudioPanel extends HTMLElement {
         this._onEditorInput(e.target.value),
       );
     }
-    const target = root.querySelector("[data-target]");
-    if (target) {
-      target.addEventListener("change", (e) =>
-        this._onTargetChange(e.target.value),
-      );
-    }
     root.querySelectorAll("[data-template]").forEach((btn) => {
       btn.addEventListener("click", () =>
         this._insertTemplate(btn.dataset.template),
@@ -519,9 +676,9 @@ export class RemoteStudioPanel extends HTMLElement {
     root.querySelectorAll("[data-act]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const act = btn.dataset.act;
-        if (act === "save") this._saveActions();
-        else if (act === "test") this._testActions();
-        else if (act === "clear") this._clearActions();
+        if (act === "save") this._saveOverride();
+        else if (act === "test") this._testOverride();
+        else if (act === "clear") this._clearOverride();
       });
     });
   }
@@ -533,64 +690,25 @@ export class RemoteStudioPanel extends HTMLElement {
       (b) => b.id === buttonId,
     );
     this._selectedStateId = btn?.states?.[0]?.id ?? null;
-    this._currentTarget = this._readTarget(buttonId);
-    this._loadEditorFromMapping();
-    this._render();
-  }
-
-  // Per-button target entity (the light/switch/scene the user wants this
-  // button to drive). Persisted to localStorage so it survives reloads
-  // without polluting the action storage on the HA side. Each device +
-  // button gets its own slot, so dot1 / dot2 / dot3 on a BILRESA can
-  // target different lights.
-  _targetKey(buttonId = this._selectedButtonId) {
-    const deviceId = this._currentRemote?.device?.id;
-    if (!deviceId || !buttonId) return null;
-    return `remote_studio:target:${deviceId}:${buttonId}`;
-  }
-
-  _readTarget(buttonId) {
-    const key = this._targetKey(buttonId);
-    if (!key) return null;
-    try {
-      return localStorage.getItem(key) || null;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  _writeTarget(entityId) {
-    const key = this._targetKey();
-    if (!key) return;
-    try {
-      if (entityId) localStorage.setItem(key, entityId);
-      else localStorage.removeItem(key);
-    } catch (_) {
-      /* private mode or quota — drop silently */
-    }
-  }
-
-  _onTargetChange(entityId) {
-    this._currentTarget = entityId || null;
-    this._writeTarget(this._currentTarget);
+    this._loadEditorFromOverride();
     this._render();
   }
 
   _selectState(stateId) {
     this._selectedStateId = stateId;
-    this._loadEditorFromMapping();
+    this._loadEditorFromOverride();
     this._render();
   }
 
-  // ============================================================ editor
-  _loadEditorFromMapping() {
-    const actions = this._currentActions();
+  // ============================================================ override editor
+  _loadEditorFromOverride() {
+    const actions = this._currentOverride();
     this._editorText = actions.length ? JSON.stringify(actions, null, 2) : "";
     this._editorError = null;
     this._editorDirty = false;
   }
 
-  _currentActions() {
+  _currentOverride() {
     if (
       !this._currentRemote ||
       !this._selectedButtonId ||
@@ -599,7 +717,7 @@ export class RemoteStudioPanel extends HTMLElement {
       return [];
     }
     return (
-      this._currentRemote.mappings?.[this._selectedButtonId]?.[
+      this._currentRemote.overrides?.[this._selectedButtonId]?.[
         this._selectedStateId
       ] || []
     );
@@ -620,7 +738,7 @@ export class RemoteStudioPanel extends HTMLElement {
     return parsed;
   }
 
-  async _saveActions() {
+  async _saveOverride() {
     let actions;
     try {
       actions = this._parseEditor();
@@ -631,16 +749,16 @@ export class RemoteStudioPanel extends HTMLElement {
     }
     try {
       await this._hass.connection.sendMessagePromise({
-        type: WS_SAVE,
+        type: WS_SET_OVERRIDE,
         device_id: this._currentRemote.device.id,
         button_id: this._selectedButtonId,
         state_id: this._selectedStateId,
         actions,
       });
-      this._setMappingLocal(actions);
+      this._setOverrideLocal(actions);
       this._editorDirty = false;
       this._editorError = null;
-      this._showToast("Saved");
+      this._showToast("Override saved");
     } catch (err) {
       this._editorError =
         (err && (err.message || err.code)) || "Save failed.";
@@ -648,19 +766,20 @@ export class RemoteStudioPanel extends HTMLElement {
     this._render();
   }
 
-  async _clearActions() {
+  async _clearOverride() {
     try {
       await this._hass.connection.sendMessagePromise({
-        type: WS_CLEAR,
+        type: WS_SET_OVERRIDE,
         device_id: this._currentRemote.device.id,
         button_id: this._selectedButtonId,
         state_id: this._selectedStateId,
+        actions: [],
       });
-      this._setMappingLocal([]);
+      this._setOverrideLocal([]);
       this._editorText = "";
       this._editorDirty = false;
       this._editorError = null;
-      this._showToast("Cleared");
+      this._showToast("Cleared override");
     } catch (err) {
       this._editorError =
         (err && (err.message || err.code)) || "Clear failed.";
@@ -668,7 +787,7 @@ export class RemoteStudioPanel extends HTMLElement {
     this._render();
   }
 
-  async _testActions() {
+  async _testOverride() {
     let actions;
     try {
       actions = this._parseEditor();
@@ -695,26 +814,41 @@ export class RemoteStudioPanel extends HTMLElement {
     }
   }
 
-  _setMappingLocal(actions) {
+  _setOverrideLocal(actions) {
     if (!this._currentRemote) return;
-    const mappings = { ...(this._currentRemote.mappings || {}) };
-    const buttonMap = { ...(mappings[this._selectedButtonId] || {}) };
+    const overrides = { ...(this._currentRemote.overrides || {}) };
+    const buttonMap = { ...(overrides[this._selectedButtonId] || {}) };
     if (actions.length) {
       buttonMap[this._selectedStateId] = actions;
-      mappings[this._selectedButtonId] = buttonMap;
+      overrides[this._selectedButtonId] = buttonMap;
     } else {
       delete buttonMap[this._selectedStateId];
       if (Object.keys(buttonMap).length) {
-        mappings[this._selectedButtonId] = buttonMap;
+        overrides[this._selectedButtonId] = buttonMap;
       } else {
-        delete mappings[this._selectedButtonId];
+        delete overrides[this._selectedButtonId];
       }
     }
-    this._currentRemote = { ...this._currentRemote, mappings };
+    this._currentRemote = { ...this._currentRemote, overrides };
   }
 
   _insertTemplate(name) {
-    const tpl = actionTemplate(name, this._currentTarget);
+    // Quick-insert templates seed an action targeting the current group's
+    // entity (when single-entity), otherwise fall back to a placeholder.
+    const button = this._currentRemote?.definition?.buttons?.find(
+      (b) => b.id === this._selectedButtonId,
+    );
+    const groupCfg = button
+      ? this._currentRemote?.groups?.[button.group]
+      : null;
+    const target = groupCfg?.target || null;
+    const entityId =
+      target && typeof target === "object" && target.entity_id
+        ? Array.isArray(target.entity_id)
+          ? target.entity_id[0]
+          : target.entity_id
+        : "";
+    const tpl = actionTemplate(name, entityId);
     if (!tpl) return;
     let current;
     try {
@@ -732,13 +866,9 @@ export class RemoteStudioPanel extends HTMLElement {
     this._editorText = value;
     this._editorDirty = true;
     this._editorError = null;
-    // No re-render — keeping the cursor stable matters more than refreshing.
   }
 
   // ============================================================ event log
-  // Update the .event-list containers in-place rather than re-rendering
-  // the whole panel — avoids disrupting the editor cursor or scroll
-  // position when events are arriving rapidly.
   _refreshEventLog() {
     const root = this.shadowRoot;
     if (!root) return;
@@ -782,9 +912,6 @@ export class RemoteStudioPanel extends HTMLElement {
   }
 }
 
-// Render functions live in views/* but are called as methods. Attaching
-// them on the prototype keeps `this` semantics intact while letting the
-// view code live in its own files.
 RemoteStudioPanel.prototype._renderIndex = renderIndex;
 RemoteStudioPanel.prototype._renderDevice = renderDevice;
 RemoteStudioPanel.prototype._renderEditor = renderEditor;

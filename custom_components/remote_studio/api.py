@@ -19,7 +19,7 @@ from homeassistant.loader import async_get_integration
 
 from .const import DOMAIN
 from .registry import RemoteDefinition, async_get_registry
-from .runtime import SIGNAL_REMOTE_EVENT
+from .runtime import SIGNAL_REMOTE_EVENT, resolve_actions
 from .storage import async_get_store
 
 
@@ -27,9 +27,10 @@ async def async_register(hass: HomeAssistant) -> None:
     """Register all WebSocket commands."""
     websocket_api.async_register_command(hass, ws_list_remotes)
     websocket_api.async_register_command(hass, ws_get_remote)
-    websocket_api.async_register_command(hass, ws_save_mapping)
-    websocket_api.async_register_command(hass, ws_clear_mapping)
+    websocket_api.async_register_command(hass, ws_set_group)
+    websocket_api.async_register_command(hass, ws_set_override)
     websocket_api.async_register_command(hass, ws_test_action)
+    websocket_api.async_register_command(hass, ws_trigger_button)
     websocket_api.async_register_command(hass, ws_subscribe_events)
 
 
@@ -40,11 +41,16 @@ def _serialise_definition(definition: RemoteDefinition) -> dict[str, Any]:
         "manufacturer": definition.manufacturer,
         "models": list(definition.models),
         "battery": definition.battery,
+        "groups": definition.groups(),
         "buttons": [
             {
                 "id": btn.id,
                 "label": btn.label,
-                "states": [{"id": s.id, "label": s.label} for s in btn.states],
+                "group": btn.group,
+                "states": [
+                    {"id": s.id, "label": s.label, "role": s.role}
+                    for s in btn.states
+                ],
             }
             for btn in definition.buttons
         ],
@@ -370,6 +376,7 @@ async def ws_get_remote(
     svg_text = await _load_svg_cached(hass, definition)
 
     battery = _find_battery(hass, device.id)
+    device_cfg = store.device(device_id)
 
     connection.send_result(
         msg["id"],
@@ -384,7 +391,8 @@ async def ws_get_remote(
             },
             "definition": _serialise_definition(definition),
             "svg": svg_text,
-            "mappings": store.device_mappings(device_id),
+            "groups": device_cfg.get("groups", {}),
+            "overrides": device_cfg.get("overrides", {}),
             "battery": battery,
             "automations": _automations_for_device(hass, device_id),
         },
@@ -423,21 +431,50 @@ def _find_battery(hass: HomeAssistant, device_id: str) -> dict[str, Any] | None:
 
 @websocket_api.websocket_command(
     {
-        vol.Required("type"): "remote_studio/save_mapping",
+        vol.Required("type"): "remote_studio/set_group",
         vol.Required("device_id"): str,
-        vol.Required("button_id"): str,
-        vol.Required("state_id"): str,
-        vol.Required("actions"): list,
+        vol.Required("group_id"): str,
+        # `target` is a HA target dict ({entity_id|device_id|area_id}) or
+        # null to clear. We don't constrain the inner shape — HA's target
+        # selector validates on its own when the action runs.
+        vol.Optional("target"): vol.Any(None, dict),
+        vol.Optional("dim_step"): vol.All(int, vol.Range(min=1, max=100)),
     }
 )
 @websocket_api.async_response
-async def ws_save_mapping(
+async def ws_set_group(
     hass: HomeAssistant,
     connection: websocket_api.ActiveConnection,
     msg: dict[str, Any],
 ) -> None:
     store = await async_get_store(hass)
-    await store.async_set_actions(
+    await store.async_set_group(
+        msg["device_id"],
+        msg["group_id"],
+        target=msg.get("target"),
+        dim_step=msg.get("dim_step"),
+    )
+    connection.send_result(msg["id"], {"ok": True})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "remote_studio/set_override",
+        vol.Required("device_id"): str,
+        vol.Required("button_id"): str,
+        vol.Required("state_id"): str,
+        # Empty list clears the override.
+        vol.Required("actions"): list,
+    }
+)
+@websocket_api.async_response
+async def ws_set_override(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    store = await async_get_store(hass)
+    await store.async_set_override(
         msg["device_id"], msg["button_id"], msg["state_id"], msg["actions"]
     )
     connection.send_result(msg["id"], {"ok": True})
@@ -445,23 +482,58 @@ async def ws_save_mapping(
 
 @websocket_api.websocket_command(
     {
-        vol.Required("type"): "remote_studio/clear_mapping",
+        vol.Required("type"): "remote_studio/trigger_button",
         vol.Required("device_id"): str,
         vol.Required("button_id"): str,
         vol.Required("state_id"): str,
     }
 )
 @websocket_api.async_response
-async def ws_clear_mapping(
+async def ws_trigger_button(
     hass: HomeAssistant,
     connection: websocket_api.ActiveConnection,
     msg: dict[str, Any],
 ) -> None:
+    """Run the resolved action for a (button, state) — the test-mode path.
+
+    Resolves through the same role+target+override pipeline as a real
+    physical event would, so test mode and live presses behave identically.
+    """
+    registry = await async_get_registry(hass)
+    device_reg = dr.async_get(hass)
+    device = device_reg.async_get(msg["device_id"])
+    if device is None:
+        connection.send_error(msg["id"], "device_not_found", "Unknown device")
+        return
+    candidates = registry.find_for_device(device.manufacturer, device.model)
+    if not candidates:
+        connection.send_error(msg["id"], "no_definition", "No matching layout")
+        return
+    definition = candidates[0]
     store = await async_get_store(hass)
-    await store.async_set_actions(
-        msg["device_id"], msg["button_id"], msg["state_id"], []
+    actions = resolve_actions(
+        definition,
+        store,
+        msg["device_id"],
+        msg["button_id"],
+        msg["state_id"],
     )
-    connection.send_result(msg["id"], {"ok": True})
+    if not actions:
+        connection.send_result(msg["id"], {"ok": True, "fired": False})
+        return
+    try:
+        sequence = SCRIPT_SCHEMA(actions)
+        script = Script(
+            hass,
+            sequence,
+            f"Remote Studio (test {msg['button_id']}/{msg['state_id']})",
+            DOMAIN,
+        )
+        await script.async_run(context=_ws_context(connection))
+    except Exception as err:  # noqa: BLE001 — surface to UI
+        connection.send_error(msg["id"], "action_failed", str(err))
+        return
+    connection.send_result(msg["id"], {"ok": True, "fired": True})
 
 
 @websocket_api.websocket_command(

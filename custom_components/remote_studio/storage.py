@@ -1,20 +1,34 @@
-"""Persistent storage for Remote Studio mappings.
+"""Persistent storage for Remote Studio device config.
 
-Schema:
+Schema (v2):
+
     {
       <device_id>: {
-        <button_id>: {
-          <state_id>: [<action_step>, ...]
+        "groups": {
+          <group_id>: {
+            "target": {"entity_id": "light.living"} | null,
+            "dim_step": 10              # percentage step for dim_up/dim_down
+          }
+        },
+        "overrides": {                  # advanced escape hatch
+          <button_id>: {
+            <state_id>: [<action_step>, ...]
+          }
         }
       }
     }
 
-Action steps mirror Home Assistant's automation `action:` block so they can
-be executed directly via ``homeassistant.helpers.script.Script``.
+The default behaviour is target + dim_step driving role-based actions;
+``overrides`` is only populated when the user opens the Advanced editor
+for a specific (button, state).
+
+Action steps mirror Home Assistant's automation ``action:`` block so they
+can be executed directly via ``homeassistant.helpers.script.Script``.
 """
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -22,21 +36,55 @@ from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN
 
-STORAGE_VERSION = 1
+_LOGGER = logging.getLogger(__name__)
+
+STORAGE_VERSION = 2
 STORAGE_KEY = f"{DOMAIN}.mappings"
+DEFAULT_DIM_STEP = 10
 
 ActionStep = dict[str, Any]
-StateActions = dict[str, list[ActionStep]]
-ButtonStates = dict[str, StateActions]
-DeviceMap = dict[str, ButtonStates]
+GroupConfig = dict[str, Any]                  # {target, dim_step}
+DeviceConfig = dict[str, Any]                 # {groups, overrides}
+StoreData = dict[str, DeviceConfig]
+
+
+def _empty_device() -> DeviceConfig:
+    return {"groups": {}, "overrides": {}}
+
+
+def _empty_group() -> GroupConfig:
+    return {"target": None, "dim_step": DEFAULT_DIM_STEP}
+
+
+async def _migrate(_old_major: int, _old_minor: int, _data: Any) -> StoreData:
+    """v1 → v2 migration: drop legacy data.
+
+    Pre-1.0 schema stored ``{<device>: {<button>: {<state>: [actions]}}}``.
+    The new shape (target per group + overrides) doesn't have a one-to-one
+    mapping for that data, and we have no real users yet — so we wipe and
+    let people re-pick targets.
+    """
+    _LOGGER.warning(
+        "Remote Studio: dropping legacy v1 mappings on schema upgrade. "
+        "Re-pick targets for each remote in the panel.",
+    )
+    return {}
 
 
 class MappingStore:
-    """Thin wrapper around HA's Store for the mapping schema."""
+    """Thin wrapper around HA's Store for the v2 schema."""
 
     def __init__(self, hass: HomeAssistant) -> None:
-        self._store: Store[DeviceMap] = Store(hass, STORAGE_VERSION, STORAGE_KEY)
-        self._data: DeviceMap = {}
+        self._store: Store[StoreData] = Store(
+            hass,
+            STORAGE_VERSION,
+            STORAGE_KEY,
+            minor_version=1,
+            atomic_writes=True,
+            # Drops legacy v1 data on first load — see _migrate.
+            async_migrate_func=_migrate,
+        )
+        self._data: StoreData = {}
 
     async def async_load(self) -> None:
         loaded = await self._store.async_load()
@@ -45,53 +93,93 @@ class MappingStore:
     async def _async_save(self) -> None:
         await self._store.async_save(self._data)
 
-    def all_mappings(self) -> DeviceMap:
-        """Return the full mapping tree (do not mutate)."""
+    # ----------------------------------------------------------------- read
+    def all_devices(self) -> StoreData:
         return self._data
 
-    def device_mappings(self, device_id: str) -> ButtonStates:
-        """Return all button/state mappings for one device."""
-        return self._data.get(device_id, {})
+    def device(self, device_id: str) -> DeviceConfig:
+        """Return the device's config (creates an empty entry if missing).
 
-    def actions_for(
+        The returned dict is a *reference* to the stored data — callers
+        treat it as read-only.
+        """
+        return self._data.get(device_id) or _empty_device()
+
+    def group(self, device_id: str, group_id: str) -> GroupConfig:
+        return (
+            self.device(device_id).get("groups", {}).get(group_id)
+            or _empty_group()
+        )
+
+    def override(
         self, device_id: str, button_id: str, state_id: str
     ) -> list[ActionStep]:
         return (
-            self._data.get(device_id, {}).get(button_id, {}).get(state_id, [])
+            self.device(device_id)
+            .get("overrides", {})
+            .get(button_id, {})
+            .get(state_id, [])
         )
 
-    async def async_set_actions(
+    # ---------------------------------------------------------------- write
+    async def async_set_group(
+        self,
+        device_id: str,
+        group_id: str,
+        *,
+        target: dict[str, Any] | None,
+        dim_step: int | None,
+    ) -> None:
+        """Set target and/or dim_step for one (device, group)."""
+        device = self._data.setdefault(device_id, _empty_device())
+        groups = device.setdefault("groups", {})
+        group = groups.setdefault(group_id, _empty_group())
+        group["target"] = target
+        if dim_step is not None:
+            group["dim_step"] = int(dim_step)
+        # Drop the device entirely if nothing useful is set.
+        self._cleanup(device_id)
+        await self._async_save()
+
+    async def async_set_override(
         self,
         device_id: str,
         button_id: str,
         state_id: str,
         actions: list[ActionStep],
     ) -> None:
-        """Set the action list for one (device, button, state).
-
-        Empty action list removes the entry and cleans up empty parents.
-        """
+        """Set or clear the action override for one (button, state)."""
+        device = self._data.setdefault(device_id, _empty_device())
+        overrides = device.setdefault("overrides", {})
         if actions:
-            self._data.setdefault(device_id, {}).setdefault(button_id, {})[
-                state_id
-            ] = actions
+            overrides.setdefault(button_id, {})[state_id] = actions
         else:
-            buttons = self._data.get(device_id)
-            if buttons is None:
-                return
-            states = buttons.get(button_id)
-            if states is None:
-                return
-            states.pop(state_id, None)
-            if not states:
-                buttons.pop(button_id, None)
-            if not buttons:
-                self._data.pop(device_id, None)
+            states = overrides.get(button_id)
+            if states is not None:
+                states.pop(state_id, None)
+                if not states:
+                    overrides.pop(button_id, None)
+        self._cleanup(device_id)
         await self._async_save()
 
     async def async_clear_device(self, device_id: str) -> None:
         if self._data.pop(device_id, None) is not None:
             await self._async_save()
+
+    # --------------------------------------------------------------- helpers
+    def _cleanup(self, device_id: str) -> None:
+        """Remove a device entry that has no groups and no overrides."""
+        device = self._data.get(device_id)
+        if device is None:
+            return
+        groups = device.get("groups") or {}
+        # Drop any empty group dicts (no target and default dim_step).
+        for gid in list(groups.keys()):
+            g = groups[gid]
+            if not g.get("target") and g.get("dim_step", DEFAULT_DIM_STEP) == DEFAULT_DIM_STEP:
+                groups.pop(gid)
+        if not groups and not device.get("overrides"):
+            self._data.pop(device_id, None)
 
 
 async def async_get_store(hass: HomeAssistant) -> MappingStore:

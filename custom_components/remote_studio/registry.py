@@ -62,10 +62,17 @@ _SOURCES = vol.All(
     vol.Length(min=1, msg="state needs at least one source mapping"),
 )
 
+# Roles drive the new "one target per group" UX: the runtime turns
+# (role + group target + dim_step) into a default action so most users
+# never touch the action editor. `none` is the literal-string opt-out
+# for states like STYRBAR's arrow buttons that have no obvious default.
+_ROLES = ("turn_on", "turn_off", "toggle", "dim_up", "dim_down", "none")
+
 _STATE = vol.Schema(
     {
         vol.Required("id"): str,
         vol.Optional("label"): str,
+        vol.Optional("role", default="none"): vol.In(_ROLES),
         vol.Required("sources"): _SOURCES,
     }
 )
@@ -74,6 +81,10 @@ _BUTTON = vol.Schema(
     {
         vol.Required("id"): str,
         vol.Optional("label"): str,
+        # Group lets multi-zone remotes (e.g. BILRESA E2490, with three
+        # dots) target a different entity per zone. Single-zone remotes
+        # leave it implicit and end up in the "main" group.
+        vol.Optional("group", default="main"): str,
         vol.Required("states"): vol.All([_STATE], vol.Length(min=1)),
     }
 )
@@ -106,6 +117,7 @@ _REMOTE = vol.Schema(
 class StateDef:
     id: str
     label: str | None
+    role: str
     sources: dict[str, dict[str, Any]]  # integration -> source spec
 
 
@@ -113,6 +125,7 @@ class StateDef:
 class ButtonDef:
     id: str
     label: str | None
+    group: str
     states: tuple[StateDef, ...]
 
 
@@ -147,6 +160,47 @@ class RemoteDefinition:
     @property
     def has_matter(self) -> bool:
         return bool(self.matter_index)
+
+    def groups(self) -> list[dict[str, Any]]:
+        """Return a list of groups in declaration order.
+
+        Each entry: ``{id, label, has_dim, button_ids}``. ``has_dim`` is
+        true when any state in the group has a dim role — the UI uses
+        it to decide whether to show the dim-step input.
+        """
+        order: list[str] = []
+        info: dict[str, dict[str, Any]] = {}
+        for button in self.buttons:
+            entry = info.get(button.group)
+            if entry is None:
+                entry = {
+                    "id": button.group,
+                    "label": _humanise_group(button.group),
+                    "has_dim": False,
+                    "button_ids": [],
+                }
+                info[button.group] = entry
+                order.append(button.group)
+            entry["button_ids"].append(button.id)
+            for state in button.states:
+                if state.role in ("dim_up", "dim_down"):
+                    entry["has_dim"] = True
+        return [info[g] for g in order]
+
+    def role_for(self, button_id: str, state_id: str) -> str:
+        for button in self.buttons:
+            if button.id != button_id:
+                continue
+            for state in button.states:
+                if state.id == state_id:
+                    return state.role
+        return "none"
+
+    def group_for(self, button_id: str) -> str:
+        for button in self.buttons:
+            if button.id == button_id:
+                return button.group
+        return "main"
 
     def matches_device(self, manufacturer: str | None, model: str | None) -> bool:
         """Return True if this definition fits a device with given manufacturer/model.
@@ -201,6 +255,19 @@ class RemoteDefinition:
 
 
 # -------------------------------------------------------------------- loading
+def _humanise_group(group_id: str) -> str:
+    """Default group label: `dot1` → `Dot 1`, `main` → `Main`."""
+    if group_id == "main":
+        return "Main"
+    # Insert a space before any trailing digits, then title-case.
+    head = group_id.rstrip("0123456789")
+    tail = group_id[len(head) :]
+    base = head.replace("_", " ").strip()
+    if tail and base:
+        return f"{base.title()} {tail}"
+    return base.title() or group_id
+
+
 def _build_definition(raw: dict[str, Any], source_path: Path) -> RemoteDefinition:
     validated = _REMOTE(raw)
     buttons: list[ButtonDef] = []
@@ -210,6 +277,7 @@ def _build_definition(raw: dict[str, Any], source_path: Path) -> RemoteDefinitio
             StateDef(
                 id=s["id"],
                 label=s.get("label"),
+                role=s["role"],
                 sources=dict(s["sources"]),
             )
             for s in raw_btn["states"]
@@ -218,6 +286,7 @@ def _build_definition(raw: dict[str, Any], source_path: Path) -> RemoteDefinitio
             ButtonDef(
                 id=raw_btn["id"],
                 label=raw_btn.get("label"),
+                group=raw_btn["group"],
                 states=states,
             )
         )

@@ -22,6 +22,7 @@ buttons:
     states:
       - id: press
         label: "Press"
+        role: turn_on
         sources:
           zha: { command: "on_press" }
           z2m: { action: "on_press" }
@@ -35,10 +36,12 @@ buttons:
     label: "Brighter"
     states:
       - id: press
+        role: dim_up
         sources:
           zha: { command: "up_press" }
           z2m: { action: "up_press" }
       - id: hold
+        role: dim_up
         sources:
           zha: { command: "up_hold" }
           z2m: { action: "up_hold" }
@@ -47,10 +50,12 @@ buttons:
     label: "Dimmer"
     states:
       - id: press
+        role: dim_down
         sources:
           zha: { command: "down_press" }
           z2m: { action: "down_press" }
       - id: hold
+        role: dim_down
         sources:
           zha: { command: "down_hold" }
           z2m: { action: "down_hold" }
@@ -59,6 +64,7 @@ buttons:
     label: "Hue"
     states:
       - id: press
+        role: turn_off
         sources:
           zha: { command: "off_press" }
           z2m: { action: "off_press" }

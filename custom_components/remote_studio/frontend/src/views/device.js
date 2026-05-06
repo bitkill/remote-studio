@@ -1,18 +1,25 @@
 /**
- * Device view — SVG layout, button list, state list, editor.
+ * Device view — controls cards, SVG layout, button list, advanced override editor.
  *
- * Called as a method on RemoteStudioPanel. The header includes the
- * integration chip, battery chip, cog link, and Test-mode toggle.
+ * The big shift in v2: each remote has one or more "groups" (dot1/dot2/dot3
+ * for the BILRESA wheel; a single "main" group for everything else). Pick a
+ * target per group and the runtime turns role-tagged states (turn_on,
+ * turn_off, dim_up, dim_down, toggle) into default actions automatically.
+ * The advanced override editor is only there as an escape hatch.
  */
 import { batteryChipHtml, integrationChipHtml } from "../chips.js";
-import {
-  countConfiguredStates,
-  describeActions,
-  escapeAttr,
-  escapeHtml,
-} from "../helpers.js";
+import { describeActions, escapeAttr, escapeHtml } from "../helpers.js";
 import { renderEditor } from "./editor.js";
 import { renderEventLogDevice } from "./log.js";
+
+const ROLE_LABELS = {
+  turn_on: "On",
+  turn_off: "Off",
+  toggle: "Toggle",
+  dim_up: "Dim ▲",
+  dim_down: "Dim ▼",
+  none: "—",
+};
 
 export function renderDevice() {
   if (!this._currentRemote) {
@@ -25,21 +32,27 @@ export function renderDevice() {
     `;
   }
 
-  const { device, definition, svg, mappings } = this._currentRemote;
+  const { device, definition, svg } = this._currentRemote;
   const selectedButton =
     definition.buttons.find((b) => b.id === this._selectedButtonId) ||
     definition.buttons[0];
 
+  const groupCards = (definition.groups || [])
+    .map((g) => renderGroupCard.call(this, g))
+    .join("");
+
   const buttonItems = definition.buttons
-    .map((b) => renderButtonRow(b, selectedButton, mappings))
+    .map((b) => renderButtonRow(b, selectedButton))
     .join("");
 
   const stateRows = (selectedButton?.states || [])
-    .map((s) => renderStateRow(s, selectedButton, mappings, this._selectedStateId))
+    .map((s) =>
+      renderStateRow.call(this, s, selectedButton, this._selectedStateId),
+    )
     .join("");
 
   const editor =
-    selectedButton && this._selectedStateId
+    selectedButton && this._selectedStateId && this._advancedOpen
       ? renderEditor.call(this, selectedButton)
       : "";
 
@@ -48,6 +61,7 @@ export function renderDevice() {
     ${this._error ? `<div class="error">${escapeHtml(this._error)}</div>` : ""}
     ${this._toast ? `<div class="toast">${escapeHtml(this._toast)}</div>` : ""}
     ${renderAutomationWarning(this._currentRemote.automations)}
+    <section class="groups-section">${groupCards}</section>
     <div class="remote-layout">
       <div class="remote-stage">${svg || '<div class="empty">No SVG layout for this remote.</div>'}</div>
       <aside class="remote-side">
@@ -73,10 +87,6 @@ function renderHeader(device, definition) {
     this._currentRemote.definition?.battery,
   );
   const integrationChip = integrationChipHtml(device.integration);
-  // Small cog next to the device name → jumps to the device's HA page.
-  // Inline SVG using the MDI `cog` path (the same glyph HA's <ha-icon>
-  // resolves to) so it always renders even when HA hasn't pre-loaded its
-  // icon-set into our shadow DOM.
   const deviceCog = `<a class="device-cog"
       href="/config/devices/device/${escapeAttr(device.id)}"
       title="Open this device in Home Assistant"
@@ -133,28 +143,124 @@ function renderAutomationWarning(automations) {
   `;
 }
 
-function renderButtonRow(button, selectedButton, mappings) {
+// One card per group: target picker (HA's native ha-target-picker, wired
+// up post-render) + dim-step input (only when the group has any dim role).
+function renderGroupCard(group) {
+  const stored = this._currentRemote.groups?.[group.id] || {};
+  const dimStep = Number.isFinite(Number(stored.dim_step))
+    ? Number(stored.dim_step)
+    : 10;
+  const targetSummary = describeTarget(stored.target);
+  const dimRow = group.has_dim
+    ? `
+        <label class="dim-step">
+          <span>Dim step</span>
+          <input type="number" min="1" max="100" step="1"
+            value="${dimStep}"
+            data-dim-step="${escapeAttr(group.id)}" />
+          <small>%</small>
+        </label>`
+    : "";
+  return `
+    <div class="group-card">
+      <div class="group-card-head">
+        <h3>${escapeHtml(group.label)}</h3>
+        ${group.has_dim ? '<span class="group-tag">dimmable</span>' : ""}
+      </div>
+      <div class="group-target-slot" data-group="${escapeAttr(group.id)}"></div>
+      ${dimRow}
+      <small class="group-summary">${escapeHtml(targetSummary)}</small>
+    </div>`;
+}
+
+function describeTarget(target) {
+  if (!target || typeof target !== "object") return "No target picked yet";
+  const ids = []
+    .concat(target.entity_id || [])
+    .concat(target.device_id || [])
+    .concat(target.area_id || []);
+  if (!ids.length) return "No target picked yet";
+  if (ids.length === 1) return `Controls ${ids[0]}`;
+  return `Controls ${ids.length} targets`;
+}
+
+function renderButtonRow(button, selectedButton) {
   const isSelected = button.id === selectedButton?.id;
-  const configured = countConfiguredStates(mappings?.[button.id]);
   return `
     <li
       class="btn-row ${isSelected ? "selected" : ""}"
       data-button-id="${escapeAttr(button.id)}"
     >
       <span class="btn-label">${escapeHtml(button.label || button.id)}</span>
-      <span class="btn-meta">${configured}/${button.states.length} states</span>
+      <span class="btn-meta">${escapeHtml(button.group)}</span>
     </li>`;
 }
 
-function renderStateRow(state, selectedButton, mappings, selectedStateId) {
-  const actions = mappings?.[selectedButton.id]?.[state.id] || [];
+// State row: shows the resolved default summary OR an "Overridden" badge
+// when the user has wired a custom action via the advanced editor.
+function renderStateRow(state, button, selectedStateId) {
   const isSelected = state.id === selectedStateId;
+  const override = this._currentRemote.overrides?.[button.id]?.[state.id];
+  const hasOverride = Array.isArray(override) && override.length > 0;
+  const groupCfg = this._currentRemote.groups?.[button.group] || {};
+  const target = groupCfg.target || null;
+
+  let summary;
+  let summaryClass = "default";
+  if (hasOverride) {
+    summary = `Override · ${describeActions(override)}`;
+    summaryClass = "override";
+  } else if (state.role === "none") {
+    summary = "Unbound";
+    summaryClass = "muted";
+  } else if (!target) {
+    summary = "Pick a target above";
+    summaryClass = "muted";
+  } else {
+    summary = `Default · ${describeRole(state.role, target, groupCfg.dim_step ?? 10)}`;
+  }
+
   return `
     <div
       class="state-row ${isSelected ? "selected" : ""}"
       data-state-id="${escapeAttr(state.id)}"
     >
-      <div class="state-label">${escapeHtml(state.label || state.id)}</div>
-      <div class="state-summary">${describeActions(actions)}</div>
+      <div class="state-main">
+        <div class="state-label">
+          ${escapeHtml(state.label || state.id)}
+          <span class="role-pill role-${escapeAttr(state.role)}">${escapeHtml(ROLE_LABELS[state.role] || state.role)}</span>
+        </div>
+        <div class="state-summary ${summaryClass}">${escapeHtml(summary)}</div>
+      </div>
     </div>`;
+}
+
+function describeRole(role, target, dimStep) {
+  const t = describeTargetShort(target);
+  switch (role) {
+    case "turn_on":
+      return `Turn on ${t}`;
+    case "turn_off":
+      return `Turn off ${t}`;
+    case "toggle":
+      return `Toggle ${t}`;
+    case "dim_up":
+      return `Brighten ${t} (+${dimStep}%)`;
+    case "dim_down":
+      return `Dim ${t} (-${dimStep}%)`;
+    default:
+      return "Unbound";
+  }
+}
+
+function describeTargetShort(target) {
+  if (!target || typeof target !== "object") return "";
+  if (target.entity_id) {
+    return Array.isArray(target.entity_id)
+      ? target.entity_id[0]
+      : target.entity_id;
+  }
+  if (target.device_id) return "device";
+  if (target.area_id) return "area";
+  return "";
 }

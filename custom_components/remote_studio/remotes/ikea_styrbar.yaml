@@ -15,6 +15,7 @@ buttons:
     states:
       - id: press
         label: "Press"
+        role: turn_on
         sources:
           zha:
             command: "on"
@@ -22,6 +23,7 @@ buttons:
             action: "on"
       - id: hold
         label: "Hold"
+        role: dim_up
         sources:
           zha:
             command: "move_with_on_off"
@@ -33,6 +35,7 @@ buttons:
     states:
       - id: press
         label: "Press"
+        role: turn_off
         sources:
           zha:
             command: "off"
@@ -40,6 +43,7 @@ buttons:
             action: "off"
       - id: hold
         label: "Hold"
+        role: dim_down
         sources:
           zha:
             command: "move"

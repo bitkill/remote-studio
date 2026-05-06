@@ -200,6 +200,86 @@ export const css = `
     100% { box-shadow: 0 1px 2px rgba(0,0,0,0.04); border-color: var(--divider-color, #e0e0e0); }
   }
 
+  /* ============================ Group cards =========================== */
+  .groups-section {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .group-card {
+    background: var(--card-background-color, #fff);
+    border: 1px solid var(--divider-color, #e0e0e0);
+    border-radius: 14px;
+    padding: 14px 16px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .group-card-head {
+    display: flex; align-items: center; gap: 8px;
+    justify-content: space-between;
+  }
+  .group-card-head h3 {
+    margin: 0; font-size: 0.95rem; font-weight: 600;
+  }
+  .group-tag {
+    font-size: 0.7rem; opacity: 0.7;
+    background: var(--secondary-background-color, #f4f4f4);
+    border: 1px solid var(--divider-color, #e0e0e0);
+    padding: 2px 8px; border-radius: 999px;
+  }
+  .group-target-slot { min-height: 56px; }
+  .group-target-slot ha-target-picker { display: block; width: 100%; }
+  .dim-step {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.85rem;
+  }
+  .dim-step > span { font-weight: 500; opacity: 0.75; flex: 0 0 auto; }
+  .dim-step input[type="number"] {
+    width: 80px;
+    font: inherit; font-size: 0.85rem;
+    padding: 6px 8px;
+    border-radius: 8px;
+    border: 1px solid var(--divider-color, #e0e0e0);
+    background: var(--card-background-color, #fff);
+    color: inherit;
+  }
+  .dim-step small { opacity: 0.6; font-size: 0.8rem; }
+  .group-summary { font-size: 0.78rem; opacity: 0.6; }
+
+  /* Role pills next to state labels */
+  .role-pill {
+    display: inline-block; margin-left: 6px;
+    font-size: 0.68rem; font-weight: 500;
+    padding: 1px 7px; border-radius: 999px;
+    background: var(--secondary-background-color, #f4f4f4);
+    border: 1px solid var(--divider-color, #e0e0e0);
+    color: var(--secondary-text-color, #666);
+    vertical-align: middle;
+  }
+  .role-pill.role-turn_on { background: rgba(91, 192, 122, 0.18); border-color: rgba(91, 192, 122, 0.35); color: #2c7a40; }
+  .role-pill.role-turn_off { background: rgba(160, 160, 160, 0.14); }
+  .role-pill.role-toggle { background: rgba(91, 141, 239, 0.14); border-color: rgba(91, 141, 239, 0.3); color: #2c4d8a; }
+  .role-pill.role-dim_up,
+  .role-pill.role-dim_down { background: rgba(255, 184, 77, 0.16); border-color: rgba(255, 184, 77, 0.35); color: #8a5a17; }
+  .state-summary.muted { font-style: italic; opacity: 0.55; }
+  .state-summary.override { color: var(--primary-color, #5b8def); font-weight: 500; }
+
+  .advanced-toggle {
+    margin-top: 8px;
+    width: 100%;
+    background: transparent;
+    border: 1px dashed var(--divider-color, #c8c8c8);
+    border-radius: 10px;
+    padding: 8px 12px;
+    color: var(--secondary-text-color, #888);
+    cursor: pointer;
+    font: inherit; font-size: 0.85rem;
+  }
+  .advanced-toggle:hover {
+    color: var(--primary-text-color);
+    border-color: var(--primary-color, #5b8def);
+  }
+
   /* ============================ Remote view =========================== */
   .remote-layout {
     display: grid;

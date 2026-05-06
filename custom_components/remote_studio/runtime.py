@@ -39,6 +39,58 @@ SIGNAL_REMOTE_EVENT = f"{DOMAIN}:remote_event"
 Z2M_TOPIC = "zigbee2mqtt/+"
 
 
+def resolve_actions(
+    definition: RemoteDefinition,
+    store: MappingStore,
+    device_id: str,
+    button_id: str,
+    state_id: str,
+) -> list[dict[str, Any]]:
+    """Decide which action list a (button, state) should fire.
+
+    Resolution order:
+      1. user override (Advanced editor) — wins if present.
+      2. role-based default — built from the group's target + dim_step.
+      3. nothing — returns [].
+    """
+    override = store.override(device_id, button_id, state_id)
+    if override:
+        return override
+    role = definition.role_for(button_id, state_id)
+    if role == "none":
+        return []
+    group_id = definition.group_for(button_id)
+    group = store.group(device_id, group_id)
+    target = group.get("target")
+    if not target:
+        return []
+    dim_step = int(group.get("dim_step") or 10)
+
+    if role == "turn_on":
+        return [{"service": "homeassistant.turn_on", "target": target}]
+    if role == "turn_off":
+        return [{"service": "homeassistant.turn_off", "target": target}]
+    if role == "toggle":
+        return [{"service": "homeassistant.toggle", "target": target}]
+    if role == "dim_up":
+        return [
+            {
+                "service": "light.turn_on",
+                "target": target,
+                "data": {"brightness_step_pct": dim_step, "transition": 0.3},
+            }
+        ]
+    if role == "dim_down":
+        return [
+            {
+                "service": "light.turn_on",
+                "target": target,
+                "data": {"brightness_step_pct": -dim_step, "transition": 0.3},
+            }
+        ]
+    return []
+
+
 class EventRuntime:
     """Owns event subscriptions and dispatches matched actions."""
 
@@ -81,7 +133,7 @@ class EventRuntime:
             match = definition.match_zha(command, args)
             if match is not None:
                 button_id, state_id = match
-                self._dispatch(device_id, button_id, state_id)
+                self._dispatch(definition, device_id, button_id, state_id)
                 return
 
     # ---------------------------------------------------------------- Z2M
@@ -129,7 +181,7 @@ class EventRuntime:
             match = definition.match_z2m(action)
             if match is not None:
                 button_id, state_id = match
-                self._dispatch(device_id, button_id, state_id)
+                self._dispatch(definition, device_id, button_id, state_id)
                 return
 
     def _z2m_device_id(self, friendly_name: str) -> str | None:
@@ -220,7 +272,7 @@ class EventRuntime:
             match = definition.match_matter(endpoint, event_type, attrs)
             if match is not None:
                 button_id, state_id = match
-                self._dispatch(device_id, button_id, state_id)
+                self._dispatch(definition, device_id, button_id, state_id)
                 return
 
     # ---------------------------------------------------------- dispatch
@@ -230,13 +282,21 @@ class EventRuntime:
             return []
         return self._registry.find_for_device(device.manufacturer, device.model)
 
-    def _dispatch(self, device_id: str, button_id: str, state_id: str) -> None:
+    def _dispatch(
+        self,
+        definition: RemoteDefinition,
+        device_id: str,
+        button_id: str,
+        state_id: str,
+    ) -> None:
         async_dispatcher_send(
             self._hass, SIGNAL_REMOTE_EVENT, device_id, button_id, state_id
         )
         if self._store is None:
             return
-        actions = self._store.actions_for(device_id, button_id, state_id)
+        actions = resolve_actions(
+            definition, self._store, device_id, button_id, state_id
+        )
         if not actions:
             return
         self._hass.async_create_task(

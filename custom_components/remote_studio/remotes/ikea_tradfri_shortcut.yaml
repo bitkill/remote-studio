@@ -19,11 +19,13 @@ buttons:
     states:
       - id: press
         label: "Single press"
+        role: turn_on
         sources:
           zha: { command: "on" }
           z2m: { action: "on" }
       - id: hold
         label: "Long press"
+        role: turn_off
         sources:
           zha: { command: "off" }
           z2m: { action: "off" }

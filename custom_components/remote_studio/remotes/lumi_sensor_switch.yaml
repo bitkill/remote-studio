@@ -21,6 +21,7 @@ buttons:
     states:
       - id: single
         label: "Single press"
+        role: toggle
         sources:
           z2m: { action: "single" }
           zha: { command: "click", args: { click_type: "single" } }
