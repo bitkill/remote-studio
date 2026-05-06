@@ -15,6 +15,9 @@ models:
   - E2489
   - BILRESA remote control with buttons
   - BILRESA dual button
+battery:
+  count: 1
+  type: CR2032
 svg: ikea_bilresa_e2489.svg
 
 # BILRESA E2489 over Matter exposes two event entities (one per physical

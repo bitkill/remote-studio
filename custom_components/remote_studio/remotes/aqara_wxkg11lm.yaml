@@ -5,6 +5,9 @@ models:
   - lumi.sensor_switch.aq2
   - lumi.remote.b1acn01
   - WXKG11LM
+battery:
+  count: 1
+  type: CR2032
 svg: aqara_wxkg11lm.svg
 
 buttons:

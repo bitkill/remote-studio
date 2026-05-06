@@ -1,19 +1,22 @@
-id: hue_dimmer_v2
-name: Philips Hue Dimmer (v2)
-manufacturer: Signify Netherlands B.V.
+id: hue_dimmer_v1
+name: Philips Hue Dimmer (v1)
+manufacturers:
+  - Philips
+  - Signify Netherlands B.V.
 models:
-  - RWL022
+  - RWL021
 battery:
   count: 1
-  type: CR2032
-svg: hue_dimmer_v2.svg
+  type: CR2450
+svg: hue_dimmer_v1.svg
 
-# v2 dimmer (RWL022) exposes button events. ZHA support requires the Philips
-# manufacturer-specific cluster 0xFC00 — for now this definition targets
-# Zigbee2MQTT (where the action strings are stable across firmware).
+# Hue Dimmer v1 (RWL021) has four discrete buttons separated by visible
+# seams (vs the v2 which uses a hue-wordmark fourth button). Z2M action
+# strings are the same family as v2; ZHA support requires the Philips
+# manufacturer-specific cluster and is skipped for now.
 buttons:
   - id: power
-    label: "Power"
+    label: "On"
     states:
       - id: press
         label: "Press"
@@ -54,15 +57,18 @@ buttons:
         sources:
           z2m: { action: "down_press_release" }
 
-  - id: hue
-    label: "Hue"
+  - id: "off"
+    label: "Off"
     states:
       - id: press
+        label: "Press"
         sources:
           z2m: { action: "off_press" }
       - id: hold
+        label: "Hold"
         sources:
           z2m: { action: "off_hold" }
       - id: release
+        label: "Release"
         sources:
           z2m: { action: "off_press_release" }

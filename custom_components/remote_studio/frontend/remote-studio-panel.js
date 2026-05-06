@@ -696,9 +696,16 @@ class RemoteStudioPanel extends HTMLElement {
       : "";
 
     const battery = this._currentRemote.battery;
-    const batteryChip = battery
-      ? `<span class="battery ${batteryClass(battery.state)}" title="${escapeAttr(battery.entity_id)}">
-           ${batterySymbol(battery.state)} ${escapeHtml(battery.state)}${escapeHtml(battery.unit || "%")}
+    const batterySpec = this._currentRemote.definition?.battery;
+    const specPart = batterySpec
+      ? ` · ${escapeHtml(String(batterySpec.count))}×${escapeHtml(batterySpec.type)}`
+      : "";
+    const batteryChip = battery || batterySpec
+      ? `<span class="battery ${battery ? batteryClass(battery.state) : ""}"
+              title="${escapeAttr(battery?.entity_id || "")}">
+           ${battery
+             ? `${batterySymbol(battery.state)} ${escapeHtml(battery.state)}${escapeHtml(battery.unit || "%")}`
+             : "🔋"}${specPart}
          </span>`
       : "";
 

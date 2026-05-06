@@ -7,6 +7,9 @@ manufacturers:
 models:
   - E2490
   - BILRESA scroll wheel
+battery:
+  count: 2
+  type: AAA
 svg: ikea_bilresa_e2490.svg
 
 # Physically the BILRESA scroll wheel is one wheel-button + three small

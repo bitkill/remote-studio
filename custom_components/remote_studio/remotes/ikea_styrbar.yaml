@@ -3,6 +3,9 @@ name: IKEA STYRBAR
 manufacturer: IKEA of Sweden
 models:
   - Remote Control N2
+battery:
+  count: 1
+  type: CR2032
 svg: ikea_styrbar.svg
 
 buttons:

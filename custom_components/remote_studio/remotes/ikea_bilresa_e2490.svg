@@ -1,27 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  IKEA BILRESA scroll wheel — trace from front-on photos.
-  Proportions taken from product photos:
-    Body W:H ≈ 1 : 1.5 (160 × 240 in this viewBox)
-    Wheel diameter ≈ 78% of body width
-    Wheel sits ~4% body-height from the top
-    Dots cluster directly beneath the wheel, ~62% down the body
+  IKEA BILRESA scroll wheel — straight-on trace from product photos.
+    Body W:H ≈ 1 : 1.4 (160 × 224 in this viewBox).
+    Wheel diameter ≈ 87% of body width (close to the silhouette edges
+    on left & right, like the photos).
+    Wheel sits high on the body, dots cluster just below it.
 -->
 <svg xmlns="http://www.w3.org/2000/svg"
-     viewBox="0 0 200 290"
+     viewBox="0 0 200 264"
      role="img"
      aria-label="IKEA BILRESA scroll wheel">
   <style>
-    :host { display: block; }
-
-    .rs-stroke {
-      fill: none;
-      stroke: var(--rs-line-color, #6e6859);
-      stroke-linejoin: round;
-      stroke-linecap: round;
-      stroke-width: 1.4;
-    }
-
     .rs-button { cursor: pointer; transition: filter 120ms ease-in-out; }
     .rs-button:hover circle.dot { fill: #5b554a; }
     .rs-button.is-active circle.dot {
@@ -32,7 +21,7 @@
       transition: fill 80ms ease-out;
     }
 
-    .rs-wheel { transform-origin: 110px 92px; transition: transform 280ms ease-out; }
+    .rs-wheel { transform-origin: 100px 92px; transition: transform 280ms ease-out; }
     .rs-wheel.is-pulsing { animation: rs-wheel-pulse 480ms ease-out 1; }
     @keyframes rs-wheel-pulse {
       0%   { transform: scale(1); }
@@ -43,63 +32,34 @@
     .dot { fill: #b8b1a0; }
   </style>
 
-  <!--
-    Body silhouette: vertical pill, fully rounded ends. Cream fill;
-    same colour as the cream BILRESA in the box-art photo.
-  -->
+  <!-- Body silhouette: vertical pill, fully rounded ends, cream fill. -->
   <path d="M 20 100
            A 80 80 0 0 1 180 100
-           L 180 180
-           A 80 80 0 0 1 20 180
+           L 180 164
+           A 80 80 0 0 1 20 164
            Z"
         fill="#efeadd"
         stroke="#7a7363"
         stroke-width="1.4"
         stroke-linejoin="round" />
 
-  <!--
-    Top-face / side-wall edge. A pill outline inset 4px from the
-    silhouette — this is where the flat top of the body curves around
-    to the side wall (visible on real BILRESAs as a soft seam running
-    just inside the perimeter).
-  -->
-  <path d="M 24 100
-           A 76 76 0 0 1 176 100
-           L 176 180
-           A 76 76 0 0 1 24 180
-           Z"
-        fill="none"
-        stroke="#a39a85"
-        stroke-width="0.9"
-        stroke-linejoin="round" />
-
-  <!--
-    Wheel disc — the seam halo (a slightly larger ring outside the disc)
-    is what makes the disc read as a separate piece sitting in a recess.
-  -->
+  <!-- Wheel disc — slightly lighter than the body. -->
   <g class="rs-wheel" id="wheel">
-    <!-- Halo / recess seam -->
-    <circle cx="110" cy="92" r="64"
-            fill="none" stroke="#a39a85" stroke-width="0.9" />
-    <!-- Disc face (slightly lighter than body) -->
-    <circle cx="110" cy="92" r="60"
+    <circle cx="100" cy="92" r="69"
             fill="#f7f3e9" stroke="#7a7363" stroke-width="1.2" />
   </g>
 
-  <!--
-    Three indicator dots directly below the wheel, biased a hair right
-    of body-centre. Tiny, the way the photos show them.
-  -->
+  <!-- Three indicator dots, centered just below the wheel. -->
   <g id="button-dot1" class="rs-button">
-    <circle cx="106" cy="170" r="10" fill="transparent" />
-    <circle class="dot" cx="106" cy="170" r="1.8" />
+    <circle cx="93" cy="180" r="10" fill="transparent" />
+    <circle class="dot" cx="93" cy="180" r="1.8" />
   </g>
   <g id="button-dot2" class="rs-button">
-    <circle cx="113" cy="170" r="10" fill="transparent" />
-    <circle class="dot" cx="113" cy="170" r="1.8" />
+    <circle cx="100" cy="180" r="10" fill="transparent" />
+    <circle class="dot" cx="100" cy="180" r="1.8" />
   </g>
   <g id="button-dot3" class="rs-button">
-    <circle cx="120" cy="170" r="10" fill="transparent" />
-    <circle class="dot" cx="120" cy="170" r="1.8" />
+    <circle cx="107" cy="180" r="10" fill="transparent" />
+    <circle class="dot" cx="107" cy="180" r="1.8" />
   </g>
 </svg>

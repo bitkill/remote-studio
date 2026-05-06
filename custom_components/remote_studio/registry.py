@@ -78,6 +78,13 @@ _BUTTON = vol.Schema(
     }
 )
 
+_BATTERY = vol.Schema(
+    {
+        vol.Required("count"): vol.All(vol.Coerce(int), vol.Range(min=1)),
+        vol.Required("type"): str,
+    }
+)
+
 _REMOTE = vol.Schema(
     {
         vol.Required("id"): str,
@@ -87,6 +94,7 @@ _REMOTE = vol.Schema(
         vol.Optional("manufacturer"): str,
         vol.Optional("manufacturers", default=list): [str],
         vol.Optional("models", default=list): [str],
+        vol.Optional("battery"): _BATTERY,
         vol.Required("svg"): str,
         vol.Required("buttons"): vol.All([_BUTTON], vol.Length(min=1)),
     }
@@ -117,6 +125,7 @@ class RemoteDefinition:
     svg_path: Path
     buttons: tuple[ButtonDef, ...]
     source_path: Path
+    battery: dict[str, Any] | None = None
 
     @property
     def manufacturer(self) -> str | None:
@@ -236,6 +245,7 @@ def _build_definition(raw: dict[str, Any], source_path: Path) -> RemoteDefinitio
         svg_path=svg_path,
         buttons=tuple(buttons),
         source_path=source_path,
+        battery=dict(validated["battery"]) if validated.get("battery") else None,
     )
 
     # Build per-integration indices

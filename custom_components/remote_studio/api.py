@@ -33,6 +33,7 @@ def _serialise_definition(definition: RemoteDefinition) -> dict[str, Any]:
         "name": definition.name,
         "manufacturer": definition.manufacturer,
         "models": list(definition.models),
+        "battery": definition.battery,
         "buttons": [
             {
                 "id": btn.id,
