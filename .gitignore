@@ -34,3 +34,10 @@ Thumbs.db
 .env
 .env.local
 *.log
+
+# Playwright dev tooling
+dev/.user-data/
+dev/screenshots/
+*.png
+!brands/*.png
+!custom_components/remote_studio/**/*.png

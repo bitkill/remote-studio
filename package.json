@@ -1,0 +1,13 @@
+{
+  "name": "remote-studio-dev",
+  "private": true,
+  "description": "Dev-tooling for the Remote Studio HA integration. The integration itself is plain Python + an ES-module panel and doesn't ship any compiled JS.",
+  "type": "module",
+  "scripts": {
+    "browse": "node dev/browse.mjs",
+    "screenshot": "node dev/screenshot.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.55.0"
+  }
+}
