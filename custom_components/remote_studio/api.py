@@ -97,14 +97,25 @@ def _automations_for_device(
     """
     # Avoid the import at module top — `automation` is not in our
     # `dependencies`, so it might not be loaded if the user removed it.
+    component = None
     try:
+        # Modern HA (≥ 2024.x) stores the EntityComponent under a HassKey,
+        # which doesn't compare equal to the plain string "automation",
+        # so we have to use the typed key for the lookup to find it.
         from homeassistant.components.automation import (  # type: ignore[import-not-found]
-            DOMAIN as AUTOMATION_DOMAIN,
+            DATA_COMPONENT,
         )
+        component = hass.data.get(DATA_COMPONENT)
     except ImportError:
-        return []
-
-    component = hass.data.get(AUTOMATION_DOMAIN)
+        pass
+    if component is None:
+        try:
+            from homeassistant.components.automation import (  # type: ignore[import-not-found]
+                DOMAIN as AUTOMATION_DOMAIN,
+            )
+            component = hass.data.get(AUTOMATION_DOMAIN)
+        except ImportError:
+            return []
     if component is None:
         return []
 
