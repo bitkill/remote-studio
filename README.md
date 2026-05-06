@@ -95,6 +95,34 @@ Then mirror `brands/icon.png` and `brands/icon@2x.png` to a PR against
 
 [brands]: https://github.com/home-assistant/brands
 
+## Releases
+
+Releases are cut automatically by [semantic-release](https://semantic-release.gitbook.io)
+on every push to `main`. The next version is computed from the
+[Conventional Commits](https://www.conventionalcommits.org/) messages
+since the last tag:
+
+| Commit type | Effect |
+|---|---|
+| `feat:` … | minor bump (e.g. 0.8.x → 0.9.0) |
+| `fix:` … | patch bump (e.g. 0.8.0 → 0.8.1) |
+| `feat!:` / `fix!:` / `BREAKING CHANGE:` in body | major bump |
+| `chore:` / `refactor:` / `docs:` / `style:` / `test:` / `ci:` | no release |
+
+The pipeline (`.github/workflows/release.yml`) runs `npx semantic-release`,
+which:
+
+1. Looks at commits since the last tag.
+2. Calls `scripts/bump-manifest.mjs <next>` to update
+   `custom_components/remote_studio/manifest.json`.
+3. Updates `CHANGELOG.md`.
+4. Commits the bump back as `chore(release): <version> [skip ci]`.
+5. Creates a `vX.Y.Z` git tag and a GitHub release with auto-generated
+   notes.
+
+To skip a release for a particular push, use a non-releasing commit type
+(`chore:`, `refactor:`, `docs:`, etc.).
+
 ## Licence
 
 MIT.
