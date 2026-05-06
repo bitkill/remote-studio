@@ -1,3 +1,10 @@
+## [0.13.2](https://github.com/bitkill/remote-studio/compare/v0.13.1...v0.13.2) (2026-05-06)
+
+
+### Bug Fixes
+
+* validate actions via SCRIPT_SCHEMA + drop release states ([4de914f](https://github.com/bitkill/remote-studio/commit/4de914f76a932f6b466f936cae847a244424742e))
+
 ## [0.13.1](https://github.com/bitkill/remote-studio/compare/v0.13.0...v0.13.1) (2026-05-06)
 
 
