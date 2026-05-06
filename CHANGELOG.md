@@ -1,3 +1,10 @@
+## [0.13.1](https://github.com/bitkill/remote-studio/compare/v0.13.0...v0.13.1) (2026-05-06)
+
+
+### Bug Fixes
+
+* **hue:** wire ZHA events for the Hue Dimmer v1 / v2 layouts ([6b808db](https://github.com/bitkill/remote-studio/commit/6b808db099caf30deda735a84e80d3c402a05bd7))
+
 # [0.13.0](https://github.com/bitkill/remote-studio/compare/v0.12.0...v0.13.0) (2026-05-06)
 
 
