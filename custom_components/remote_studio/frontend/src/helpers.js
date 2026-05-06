@@ -52,6 +52,7 @@ export function batteryClass(state) {
   if (n === null) return "is-unknown";
   if (n <= 10) return "is-critical";
   if (n <= 25) return "is-low";
+  if (n >= 80) return "is-good";
   return "";
 }
 

@@ -26,6 +26,63 @@ export const css = `
   }
   .back:hover { filter: brightness(0.96); }
   section { margin-bottom: 32px; }
+  .section-head {
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 12px;
+  }
+  .section-head h2 { margin: 0; flex: 0 0 auto; }
+  .filter-bar {
+    flex: 1;
+    display: flex; align-items: center; gap: 12px;
+    justify-content: flex-end;
+  }
+  .filter-input-wrap {
+    position: relative;
+    flex: 1; max-width: 360px;
+    display: flex; align-items: center;
+  }
+  .filter-icon {
+    position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+    color: var(--secondary-text-color, #888);
+    --mdc-icon-size: 18px;
+    width: 18px; height: 18px;
+    pointer-events: none;
+  }
+  .filter-input {
+    flex: 1; min-width: 0;
+    padding: 8px 32px 8px 36px;
+    border-radius: 999px;
+    border: 1px solid var(--divider-color, #e0e0e0);
+    background: var(--secondary-background-color, #f4f4f4);
+    color: inherit;
+    font: inherit; font-size: 0.9rem;
+    -webkit-appearance: none; appearance: none;
+  }
+  .filter-input::-webkit-search-cancel-button { display: none; }
+  .filter-input:focus {
+    outline: none;
+    border-color: var(--primary-color, #5b8def);
+    box-shadow: 0 0 0 2px rgba(91, 141, 239, 0.18);
+  }
+  .filter-clear {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: none;
+    background: var(--divider-color, #d4d4d4);
+    color: var(--primary-text-color, #333);
+    cursor: pointer;
+    font-size: 0.95rem;
+    line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .filter-clear:hover { filter: brightness(0.94); }
+  .filter-count {
+    font-size: 0.82rem;
+    opacity: 0.7;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
   ul { padding-left: 20px; margin: 0; }
   li { margin: 4px 0; }
   .empty {
@@ -76,7 +133,16 @@ export const css = `
   .card-body { min-width: 0; }
   .card-title { font-weight: 600; font-size: 1.02rem; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .card-meta { font-size: 0.9rem; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .card-meta-soft { font-size: 0.78rem; opacity: 0.55; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-meta-soft {
+    font-size: 0.78rem; opacity: 0.65; margin-top: 1px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .card-meta-soft ha-icon {
+    --mdc-icon-size: 14px;
+    width: 14px; height: 14px;
+    flex-shrink: 0;
+  }
   .card-chips { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
   .card-chip {
     display: inline-flex; align-items: center; gap: 4px;
@@ -260,6 +326,11 @@ export const css = `
   .battery .battery-icon { width: 1em; height: 1em; flex-shrink: 0; }
   .battery .battery-icon path { fill: currentColor; }
   .battery .battery-text { line-height: 1; }
+  .battery.is-good {
+    background: var(--success-color, #4caf50);
+    color: var(--text-primary-color, #fff);
+    border-color: transparent;
+  }
   .battery.is-low {
     background: var(--warning-color, #ffb74d);
     color: var(--text-primary-color, #fff);
@@ -270,7 +341,13 @@ export const css = `
     color: var(--text-primary-color, #fff);
     border-color: transparent;
   }
-  .battery.is-unknown { opacity: 0.7; }
+  .battery.is-unknown {
+    background: transparent;
+    border-style: dashed;
+    border-color: var(--divider-color, #999);
+    opacity: 0.55;
+    font-style: italic;
+  }
 
   /* Smaller chip variant when used inside a card */
   .card-chips .battery { font-size: 0.78rem; padding: 3px 9px; }

@@ -49,6 +49,8 @@ export class RemoteStudioPanel extends HTMLElement {
 
     this._eventUnsub = null;
     this._pulseTimers = new Map();
+
+    this._filterText = "";
   }
 
   // ============================================================ lifecycle
@@ -347,6 +349,32 @@ export class RemoteStudioPanel extends HTMLElement {
           this._openRemote(e.target.dataset.pairDevice, definitionId);
         }),
       );
+
+    const filter = root.querySelector("[data-filter]");
+    if (filter) {
+      filter.addEventListener("input", (e) => this._onFilterInput(e.target.value));
+      // Restore caret position after re-render.
+      if (filter.value !== this._filterText) {
+        filter.value = this._filterText;
+      }
+      // Keep focus on the filter as the user types — render() reset it.
+      if (this._filterFocused) {
+        filter.focus();
+        const len = filter.value.length;
+        try { filter.setSelectionRange(len, len); } catch (_) {}
+      }
+    }
+
+    const clearBtn = root.querySelector("[data-clear-filter]");
+    if (clearBtn) {
+      clearBtn.addEventListener("click", () => this._onFilterInput(""));
+    }
+  }
+
+  _onFilterInput(value) {
+    this._filterText = value;
+    this._filterFocused = true;
+    this._render();
   }
 
   _wireSvg() {

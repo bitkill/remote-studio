@@ -7,7 +7,11 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import Context, HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import (
+    area_registry as ar,
+    device_registry as dr,
+    entity_registry as er,
+)
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.script import Script
 
@@ -62,6 +66,16 @@ def _device_integration(device) -> str | None:
         if domain in domains:
             return domain
     return next(iter(sorted(domains)), None) if domains else None
+
+
+def _device_area(hass: HomeAssistant, device) -> dict[str, str] | None:
+    """Return {id, name} for the device's HA area, or None."""
+    if not device.area_id:
+        return None
+    area = ar.async_get(hass).async_get_area(device.area_id)
+    if area is None:
+        return None
+    return {"id": area.id, "name": area.name}
 
 
 async def _load_svg_cached(
@@ -139,6 +153,7 @@ async def ws_list_remotes(
                     "model": device.model,
                     "definition_id": chosen.id,
                     "integration": _device_integration(device),
+                    "area": _device_area(hass, device),
                     "battery": _find_battery(hass, device.id),
                 }
             )
@@ -181,6 +196,7 @@ async def ws_list_remotes(
                 "manufacturer": device.manufacturer,
                 "model": device.model,
                 "integration": _device_integration(device),
+                "area": _device_area(hass, device),
             }
         )
 
@@ -250,6 +266,7 @@ async def ws_get_remote(
                 "manufacturer": device.manufacturer,
                 "model": device.model,
                 "integration": _device_integration(device),
+                "area": _device_area(hass, device),
             },
             "definition": _serialise_definition(definition),
             "svg": svg_text,

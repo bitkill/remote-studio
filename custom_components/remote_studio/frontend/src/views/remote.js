@@ -88,7 +88,9 @@ function renderHeader(device, definition) {
           <span>${escapeHtml(device.name) || "Remote"}</span>
           ${deviceCog}
         </h1>
-        <p class="lead">${escapeHtml(definition.name)} · ${escapeHtml(device.manufacturer || "")}</p>
+        <p class="lead">${escapeHtml(definition.name)}${
+          device.area ? ` · ${escapeHtml(device.area.name)}` : ""
+        }</p>
       </div>
       ${integrationChip}
       ${batteryChip}
