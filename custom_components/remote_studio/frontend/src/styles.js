@@ -10,6 +10,19 @@ export const css = `
     font-family: var(--paper-font-body1_-_font-family, system-ui, sans-serif);
   }
   h1 { margin: 0; font-size: 1.6rem; font-weight: 500; }
+  .version-tag {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--secondary-background-color, #f4f4f4);
+    border: 1px solid var(--divider-color, #e0e0e0);
+    font-size: 0.7rem;
+    font-weight: 500;
+    vertical-align: middle;
+    color: var(--secondary-text-color, #888);
+    font-variant-numeric: tabular-nums;
+  }
   h2 { font-size: 1.05rem; margin: 0 0 12px; font-weight: 500; }
   .page-header { margin-bottom: 24px; }
   .page-header.with-back { display: flex; gap: 16px; align-items: center; justify-content: flex-start; }
@@ -351,23 +364,24 @@ export const css = `
   /* Smaller chip variant when used inside a card */
   .card-chips .battery { font-size: 0.78rem; padding: 3px 9px; }
   .card-chips .battery .battery-text { white-space: normal; }
-  .card-chips .integration-chip { font-size: 0.78rem; padding: 3px 9px 3px 4px; }
-  .card-chips .integration-chip img { width: 16px; height: 16px; }
+  .card-chips .integration-chip { font-size: 0.78rem; padding: 3px 10px 3px 8px; gap: 5px; }
+  .card-chips .integration-chip svg { width: 14px; height: 14px; }
 
-  /* Integration brand chip */
+  /* Integration chip — single-colour MDI glyph + label, themed by
+     currentColor like the cog / battery / area icons. */
   .integration-chip {
     display: inline-flex; align-items: center; gap: 6px;
-    padding: 4px 12px 4px 6px; border-radius: 999px;
+    padding: 6px 12px; border-radius: 999px;
     background: var(--secondary-background-color, #f4f4f4);
     border: 1px solid var(--divider-color, #e0e0e0);
     font-size: 0.85rem;
     white-space: nowrap;
+    color: var(--primary-text-color);
   }
-  .integration-chip img {
-    width: 18px; height: 18px;
-    border-radius: 4px;
-    object-fit: contain;
-    background: white;
+  .integration-chip svg {
+    width: 16px; height: 16px;
+    fill: currentColor;
+    flex-shrink: 0;
   }
 
   /* Cog icon next to the device name → links to the HA device page. */

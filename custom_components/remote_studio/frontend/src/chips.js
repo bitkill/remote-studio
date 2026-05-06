@@ -9,16 +9,15 @@ import {
   batteryIcon,
   escapeAttr,
   escapeHtml,
+  mdiIcon,
 } from "./helpers.js";
 
 export function integrationChipHtml(integration) {
   if (!integration) return "";
-  const info = INTEGRATION_INFO[integration] || {
-    label: integration,
-    icon: `https://brands.home-assistant.io/_/${encodeURIComponent(integration)}/icon.png`,
-  };
+  const info = INTEGRATION_INFO[integration] || { label: integration };
+  const glyph = info.mdi ? mdiIcon(info.mdi) : "";
   return `<span class="integration-chip" title="${escapeAttr(integration)}">
-    <img src="${escapeAttr(info.icon)}" alt="" loading="lazy" />
+    ${glyph}
     <span>${escapeHtml(info.label)}</span>
   </span>`;
 }

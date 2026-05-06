@@ -79,23 +79,29 @@ export const STATE_DEFAULT_TEMPLATE = {
   hold: "light_scene",
 };
 
-// HA brand icons (https://brands.home-assistant.io). Core integrations live
-// under `_/`, community ones under their own folder.
-export const INTEGRATION_INFO = {
-  matter:      { label: "Matter", icon: "https://brands.home-assistant.io/_/matter/icon.png" },
-  zha:         { label: "ZHA",    icon: "https://brands.home-assistant.io/_/zha/icon.png" },
-  zigbee2mqtt: { label: "Z2M",    icon: "https://brands.home-assistant.io/zigbee2mqtt/icon.png" },
-  mqtt:        { label: "MQTT",   icon: "https://brands.home-assistant.io/_/mqtt/icon.png" },
-  zigbee:      { label: "Zigbee", icon: "https://brands.home-assistant.io/_/zha/icon.png" },
-};
-
-// Material Design Icon paths used elsewhere in the UI. Inlined as SVG
-// because HA's <ha-icon> element doesn't always resolve its iconset
-// inside our shadow DOM.
+// Material Design Icon paths used in the UI. Inlined as SVG because
+// HA's <ha-icon> element doesn't always resolve its iconset inside
+// our shadow DOM. All paths come from materialdesignicons.com.
 export const MDI_PATHS = {
   cog: "M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z",
   magnify: "M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z",
   mapMarker: "M12,11.5A2.5,2.5 0 0,1 9.5,9A2.5,2.5 0 0,1 12,6.5A2.5,2.5 0 0,1 14.5,9A2.5,2.5 0 0,1 12,11.5M12,2A7,7 0 0,0 5,9C5,14.25 12,22 12,22C12,22 19,14.25 19,9A7,7 0 0,0 12,2Z",
+  // Zigbee Alliance "bee + Z" stylised glyph (mdi:zigbee).
+  zigbee: "M4.06 6.15c-.09.02-.18.07-.26.13A9.9 9.9 0 0 0 2 12a10 10 0 0 0 10 10c3 0 5.68-1.32 7.5-3.4l-2.5.25c-2.75.3-5.55.34-8.34.11c-.71-.02-1.42-.2-2.07-.51a2.62 2.62 0 0 1-1.52-2.16c-.01-.16.05-.29.16-.42l2.19-2.27l7.61-7.9v-.1h-4.19c-2.27.04-4.53.22-6.78.55M20.17 17.5c.09-.03.18-.06.26-.11A10 10 0 0 0 22 12A10 10 0 0 0 12 2C9.22 2 6.7 3.13 4.89 4.97h.28c3.11-.4 6.26-.5 9.39-.32c.94-.01 1.89.17 2.77.52A2.67 2.67 0 0 1 19 7.37c0 .16-.07.33-.18.45l-9.11 9.37l-.71.76v.11h4.14c2.36-.06 4.7-.25 7.03-.56",
+  // Connected nodes — close enough to Matter's interconnected-circles
+  // logo for a monochrome chip (mdi:molecule).
+  molecule: "M7.27 10L9 7h5.42l1.16-2l-.08-.5A1.5 1.5 0 0 1 17 3a1.5 1.5 0 0 1 1.5 1.5c0 .71-.5 1.31-1.17 1.46l-.96 1.67L17.73 10l.86-1.5l-.09-.5A1.5 1.5 0 0 1 20 6.5A1.5 1.5 0 0 1 21.5 8c0 .71-.5 1.3-1.15 1.46L18.89 12l1.73 3c.77.07 1.38.71 1.38 1.5a1.5 1.5 0 0 1-1.5 1.5a1.5 1.5 0 0 1-1.5-1.5v-.26L17.73 14l-1.36 2.37l.96 1.67a1.5 1.5 0 0 1 1.17 1.46A1.5 1.5 0 0 1 17 21a1.5 1.5 0 0 1-1.5-1.5l.08-.5l-1.16-2h-3.84l-1.16 2l.08.5A1.5 1.5 0 0 1 8 21a1.5 1.5 0 0 1-1.5-1.5c0-.71.5-1.31 1.17-1.46l.96-1.67L4.38 9C3.61 8.93 3 8.29 3 7.5A1.5 1.5 0 0 1 4.5 6A1.5 1.5 0 0 1 6 7.5v.26zm2.88-1l-1.73 3l1.73 3h4.7l1.73-3l-1.73-3z",
+  // Concentric arcs — radio waves (mdi:access-point).
+  accessPoint: "M4.93 4.93A9.97 9.97 0 0 0 2 12c0 2.76 1.12 5.26 2.93 7.07l1.41-1.41A7.94 7.94 0 0 1 4 12c0-2.21.89-4.22 2.34-5.66zm14.14 0l-1.41 1.41A7.96 7.96 0 0 1 20 12c0 2.22-.89 4.22-2.34 5.66l1.41 1.41A9.97 9.97 0 0 0 22 12c0-2.76-1.12-5.26-2.93-7.07M7.76 7.76A5.98 5.98 0 0 0 6 12c0 1.65.67 3.15 1.76 4.24l1.41-1.41A4 4 0 0 1 8 12c0-1.11.45-2.11 1.17-2.83zm8.48 0l-1.41 1.41A4 4 0 0 1 16 12c0 1.11-.45 2.11-1.17 2.83l1.41 1.41A5.98 5.98 0 0 0 18 12c0-1.65-.67-3.15-1.76-4.24M12 10a2 2 0 0 0-2 2a2 2 0 0 0 2 2a2 2 0 0 0 2-2a2 2 0 0 0-2-2",
+};
+
+// Integration domain → human label + which monochrome MDI glyph to use.
+export const INTEGRATION_INFO = {
+  matter:      { label: "Matter", mdi: "molecule" },
+  zha:         { label: "ZHA",    mdi: "zigbee" },
+  zigbee2mqtt: { label: "Z2M",    mdi: "zigbee" },
+  zigbee:      { label: "Zigbee", mdi: "zigbee" },
+  mqtt:        { label: "MQTT",   mdi: "accessPoint" },
 };
 
 // Material Design Icon paths used by HA's battery icons. We inline a few

@@ -30,9 +30,13 @@ export function renderList() {
     .map((c) => renderCandidate(c, layoutOptions))
     .join("");
 
+  const versionTag = this._version
+    ? ` <span class="version-tag">v${escapeHtml(this._version)}</span>`
+    : "";
+
   return `
     <header class="page-header">
-      <h1>Remote Studio</h1>
+      <h1>Remote Studio${versionTag}</h1>
       <p class="lead">Configure your Zigbee and Matter remotes visually.</p>
     </header>
     ${this._error ? `<div class="error">${escapeHtml(this._error)}</div>` : ""}

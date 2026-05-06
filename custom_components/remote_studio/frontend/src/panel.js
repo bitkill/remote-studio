@@ -37,6 +37,7 @@ export class RemoteStudioPanel extends HTMLElement {
     this._remotes = [];
     this._candidates = [];
     this._definitions = [];
+    this._version = null;
     this._testMode = false;
     this._currentRemote = null; // { device, definition, svg, mappings, battery }
     this._selectedButtonId = null;
@@ -131,12 +132,30 @@ export class RemoteStudioPanel extends HTMLElement {
       this._definitions = Array.isArray(result.definitions)
         ? result.definitions
         : [];
+      // Newer backends include `version` in the response; fall back to
+      // HA's built-in manifest endpoint when they don't.
+      this._version = result.version || null;
+      if (!this._version) {
+        this._version = await this._fetchManifestVersion();
+      }
       this._error = null;
     } catch (err) {
       this._error =
         (err && (err.message || err.code)) || "Failed to load remotes.";
     }
     this._render();
+  }
+
+  async _fetchManifestVersion() {
+    try {
+      const m = await this._hass.connection.sendMessagePromise({
+        type: "manifest/get",
+        integration: "remote_studio",
+      });
+      return m?.version || null;
+    } catch (_) {
+      return null;
+    }
   }
 
   async _loadRemote(deviceId, definitionId) {

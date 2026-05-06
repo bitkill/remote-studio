@@ -12,6 +12,7 @@ from homeassistant.helpers import (
     device_registry as dr,
     entity_registry as er,
 )
+from homeassistant.loader import async_get_integration
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.script import Script
 
@@ -206,9 +207,12 @@ async def ws_list_remotes(
         s["svg"] = await _load_svg_cached(hass, d)
         serialised_defs.append(s)
 
+    integration_meta = await async_get_integration(hass, DOMAIN)
+
     connection.send_result(
         msg["id"],
         {
+            "version": integration_meta.version,
             "remotes": remotes,
             "candidates": candidates,
             "definitions": serialised_defs,

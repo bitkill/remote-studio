@@ -4,10 +4,13 @@
   "description": "Dev-tooling for the Remote Studio HA integration. The integration itself is plain Python + an ES-module panel and doesn't ship any compiled JS.",
   "type": "module",
   "scripts": {
+    "dev": "vite",
     "browse": "node --env-file=.env dev/browse.mjs",
     "screenshot": "node --env-file=.env dev/screenshot.mjs"
   },
   "devDependencies": {
-    "playwright": "^1.55.0"
+    "home-assistant-js-websocket": "^9.4.0",
+    "playwright": "^1.55.0",
+    "vite": "^7.0.0"
   }
 }

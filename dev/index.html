@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Remote Studio — local dev</title>
+    <style>
+      :root { color-scheme: light dark; }
+      html, body { margin: 0; height: 100%; }
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        background: #f6f5f1;
+        color: #1f1f1f;
+      }
+      @media (prefers-color-scheme: dark) {
+        body { background: #1a1a1a; color: #eaeaea; }
+      }
+      .dev-banner {
+        position: fixed; top: 0; right: 0;
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+        padding: 4px 12px;
+        font-size: 11px;
+        border-bottom-left-radius: 6px;
+        font-family: ui-monospace, monospace;
+        z-index: 1000;
+      }
+      .dev-status { display: block; opacity: 0.8; }
+    </style>
+  </head>
+  <body>
+    <div class="dev-banner">
+      <span class="dev-status" id="status">connecting…</span>
+    </div>
+    <script type="module" src="./shim.mjs"></script>
+  </body>
+</html>
