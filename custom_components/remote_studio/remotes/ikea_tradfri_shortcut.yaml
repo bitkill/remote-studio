@@ -1,0 +1,29 @@
+id: ikea_tradfri_shortcut
+name: IKEA TRÅDFRI Shortcut button
+manufacturers:
+  - IKEA
+  - IKEA of Sweden
+models:
+  - E1812
+  - TRADFRI SHORTCUT Button
+battery:
+  count: 1
+  type: CR2032
+svg: ikea_tradfri_shortcut.svg
+
+# Single-button remote. Z2M emits 'on' for a short press and 'off' for
+# a long press; ZHA fires the matching cluster commands.
+buttons:
+  - id: button
+    label: "Button"
+    states:
+      - id: press
+        label: "Single press"
+        sources:
+          zha: { command: "on" }
+          z2m: { action: "on" }
+      - id: hold
+        label: "Long press"
+        sources:
+          zha: { command: "off" }
+          z2m: { action: "off" }

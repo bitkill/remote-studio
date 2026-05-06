@@ -693,9 +693,7 @@ class RemoteStudioPanel extends HTMLElement {
         const def = definitionsById.get(r.definition_id);
         const thumb = def?.svg ? def.svg : "";
         const layoutName = def?.name || r.definition_id;
-        const battery = def?.battery
-          ? `<span class="card-chip">🔋 ${escapeHtml(String(def.battery.count))}×${escapeHtml(def.battery.type)}</span>`
-          : "";
+        const battery = batteryChipHtml(r.battery, def?.battery);
         return `
           <button class="card" data-device-id="${escapeAttr(r.device_id)}">
             <div class="card-thumb">${thumb}</div>
@@ -820,19 +818,10 @@ class RemoteStudioPanel extends HTMLElement {
       ? this._renderEditor(selectedButton)
       : "";
 
-    const battery = this._currentRemote.battery;
-    const batterySpec = this._currentRemote.definition?.battery;
-    const specPart = batterySpec
-      ? ` · ${escapeHtml(String(batterySpec.count))}×${escapeHtml(batterySpec.type)}`
-      : "";
-    const batteryChip = battery || batterySpec
-      ? `<span class="battery ${battery ? batteryClass(battery.state) : ""}"
-              title="${escapeAttr(battery?.entity_id || "")}">
-           ${battery
-             ? `${batterySymbol(battery.state)} ${escapeHtml(battery.state)}${escapeHtml(battery.unit || "%")}`
-             : "🔋"}${specPart}
-         </span>`
-      : "";
+    const batteryChip = batteryChipHtml(
+      this._currentRemote.battery,
+      this._currentRemote.definition?.battery,
+    );
 
     return `
       <header class="page-header with-back">
@@ -1163,13 +1152,19 @@ class RemoteStudioPanel extends HTMLElement {
       .test-toggle input { accent-color: var(--primary-color, #5b8def); }
 
       .battery {
-        display: inline-flex; align-items: center; gap: 4px;
+        display: inline-flex; align-items: center; gap: 6px;
         padding: 6px 12px; border-radius: 999px;
         background: var(--secondary-background-color, #f4f4f4);
         border: 1px solid var(--divider-color, #e0e0e0);
         font-size: 0.85rem; font-variant-numeric: tabular-nums;
         white-space: nowrap;
       }
+      .battery .battery-icon {
+        width: 1em; height: 1em;
+        flex-shrink: 0;
+      }
+      .battery .battery-icon path { fill: currentColor; }
+      .battery .battery-text { line-height: 1; }
       .battery.is-low {
         background: var(--warning-color, #ffb74d);
         color: var(--text-primary-color, #fff);
@@ -1180,6 +1175,13 @@ class RemoteStudioPanel extends HTMLElement {
         color: var(--text-primary-color, #fff);
         border-color: transparent;
       }
+      .battery.is-unknown { opacity: 0.7; }
+      /* Card chips wrap at small widths */
+      .card-chips .battery {
+        font-size: 0.78rem;
+        padding: 3px 9px;
+      }
+      .card-chips .battery .battery-text { white-space: normal; }
 
       /* Candidate list */
       .candidate-list { display: flex; flex-direction: column; gap: 8px; }
@@ -1232,19 +1234,54 @@ function batteryPercent(state) {
   return Number.isFinite(n) ? n : null;
 }
 
-function batterySymbol(state) {
+// Material Design Icons paths used by HA. We inline a few level icons so
+// the panel renders the same battery glyph HA uses elsewhere.
+const BATTERY_ICONS = {
+  // mdi:battery (full)
+  full: "M16,20H8V6H16M16.67,4H15V2H9V4H7.33A1.33,1.33 0 0,0 6,5.33V20.67C6,21.4 6.6,22 7.33,22H16.67A1.33,1.33 0 0,0 18,20.67V5.33C18,4.6 17.4,4 16.67,4Z",
+  // mdi:battery-50
+  half: "M16,20H8V13H16V20M16.67,4H15V2H9V4H7.33A1.33,1.33 0 0,0 6,5.33V20.67C6,21.4 6.6,22 7.33,22H16.67A1.33,1.33 0 0,0 18,20.67V5.33C18,4.6 17.4,4 16.67,4Z",
+  // mdi:battery-alert
+  alert: "M16.67,4H15V2H9V4H7.33A1.33,1.33 0 0,0 6,5.33V20.67C6,21.4 6.6,22 7.33,22H16.67A1.33,1.33 0 0,0 18,20.67V5.33C18,4.6 17.4,4 16.67,4M11,8H13V14H11V8M11,16H13V18H11V16Z",
+  // mdi:battery-unknown
+  unknown: "M16.67,4H15V2H9V4H7.33A1.33,1.33 0 0,0 6,5.33V20.67C6,21.4 6.6,22 7.33,22H16.67A1.33,1.33 0 0,0 18,20.67V5.33C18,4.6 17.4,4 16.67,4M11,18V16H13V18H11M13,15H11C11,11.75 14,12 14,10A2,2 0 0,0 12,8A2,2 0 0,0 10,10H8A4,4 0 0,1 12,6A4,4 0 0,1 16,10C16,12.5 13,12.75 13,15Z",
+};
+
+function batteryIconPath(state) {
   const n = batteryPercent(state);
-  if (n === null) return "🔋";
-  if (n <= 10) return "🪫";
-  return "🔋";
+  if (n === null) return BATTERY_ICONS.unknown;
+  if (n <= 15) return BATTERY_ICONS.alert;
+  if (n <= 60) return BATTERY_ICONS.half;
+  return BATTERY_ICONS.full;
+}
+
+function batteryIcon(state) {
+  return `<svg class="battery-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="${batteryIconPath(state)}" />
+  </svg>`;
 }
 
 function batteryClass(state) {
   const n = batteryPercent(state);
-  if (n === null) return "";
+  if (n === null) return "is-unknown";
   if (n <= 10) return "is-critical";
   if (n <= 25) return "is-low";
   return "";
+}
+
+function batteryChipHtml(battery, batterySpec) {
+  if (!battery && !batterySpec) return "";
+  const status = battery
+    ? `${escapeHtml(String(battery.state))}${escapeHtml(battery.unit || "%")}`
+    : "no status reported";
+  const specPart = batterySpec
+    ? ` · ${escapeHtml(String(batterySpec.count))}×${escapeHtml(batterySpec.type)}`
+    : "";
+  const cls = battery ? batteryClass(battery.state) : "is-unknown";
+  const titleAttr = battery?.entity_id
+    ? ` title="${escapeAttr(battery.entity_id)}"`
+    : "";
+  return `<span class="battery ${cls}"${titleAttr}>${batteryIcon(battery?.state)}<span class="battery-text">${status}${specPart}</span></span>`;
 }
 
 function countConfiguredStates(buttonMappings) {

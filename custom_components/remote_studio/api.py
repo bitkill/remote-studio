@@ -124,6 +124,7 @@ async def ws_list_remotes(
                     "manufacturer": device.manufacturer,
                     "model": device.model,
                     "definition_id": chosen.id,
+                    "battery": _find_battery(hass, device.id),
                 }
             )
             continue
