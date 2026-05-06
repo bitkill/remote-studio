@@ -694,6 +694,7 @@ class RemoteStudioPanel extends HTMLElement {
         const thumb = def?.svg ? def.svg : "";
         const layoutName = def?.name || r.definition_id;
         const battery = batteryChipHtml(r.battery, def?.battery);
+        const integration = integrationChipHtml(r.integration);
         return `
           <button class="card" data-device-id="${escapeAttr(r.device_id)}">
             <div class="card-thumb">${thumb}</div>
@@ -701,7 +702,7 @@ class RemoteStudioPanel extends HTMLElement {
               <div class="card-title">${escapeHtml(r.device_name) || "Unnamed remote"}</div>
               <div class="card-meta">${escapeHtml(layoutName)}</div>
               <div class="card-meta-soft">${escapeHtml(r.manufacturer || "")}${r.model ? ` · ${escapeHtml(r.model)}` : ""}</div>
-              <div class="card-chips">${battery}</div>
+              <div class="card-chips">${integration}${battery}</div>
             </div>
             <div class="card-arrow">›</div>
           </button>`;
@@ -724,9 +725,10 @@ class RemoteStudioPanel extends HTMLElement {
       .map(
         (c) => `
         <div class="candidate">
-          <div>
+          <div class="candidate-info">
             <div class="title">${escapeHtml(c.device_name) || "Unnamed device"}</div>
             <div class="meta">${escapeHtml(c.manufacturer || "")} · ${escapeHtml(c.model || "")}</div>
+            <div class="card-chips">${integrationChipHtml(c.integration)}</div>
           </div>
           <div class="candidate-actions">
             <select data-pair-device="${escapeAttr(c.device_id)}">
@@ -822,6 +824,16 @@ class RemoteStudioPanel extends HTMLElement {
       this._currentRemote.battery,
       this._currentRemote.definition?.battery,
     );
+    const integrationChip = integrationChipHtml(device.integration);
+    const haDeviceLink = `<a class="ha-link"
+        href="/config/devices/device/${escapeAttr(device.id)}"
+        title="Open this device in Home Assistant"
+        rel="noopener">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z" />
+        </svg>
+        <span>Open in HA</span>
+      </a>`;
 
     return `
       <header class="page-header with-back">
@@ -830,7 +842,9 @@ class RemoteStudioPanel extends HTMLElement {
           <h1>${escapeHtml(device.name) || "Remote"}</h1>
           <p class="lead">${escapeHtml(definition.name)} · ${escapeHtml(device.manufacturer || "")}</p>
         </div>
+        ${integrationChip}
         ${batteryChip}
+        ${haDeviceLink}
         <label class="test-toggle">
           <input type="checkbox" ${this._testMode ? "checked" : ""} data-test-toggle />
           <span>Test mode</span>
@@ -1182,6 +1196,44 @@ class RemoteStudioPanel extends HTMLElement {
         padding: 3px 9px;
       }
       .card-chips .battery .battery-text { white-space: normal; }
+      .card-chips .integration-chip {
+        font-size: 0.78rem;
+        padding: 3px 9px 3px 4px;
+      }
+      .card-chips .integration-chip img { width: 16px; height: 16px; }
+
+      /* Integration brand chip */
+      .integration-chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 4px 12px 4px 6px; border-radius: 999px;
+        background: var(--secondary-background-color, #f4f4f4);
+        border: 1px solid var(--divider-color, #e0e0e0);
+        font-size: 0.85rem;
+        white-space: nowrap;
+      }
+      .integration-chip img {
+        width: 18px; height: 18px;
+        border-radius: 4px;
+        object-fit: contain;
+        background: white;
+      }
+
+      /* "Open in HA" link in the remote-detail header */
+      .ha-link {
+        display: inline-flex; align-items: center; gap: 6px;
+        text-decoration: none; color: inherit;
+        padding: 6px 12px; border-radius: 999px;
+        background: var(--secondary-background-color, #f4f4f4);
+        border: 1px solid var(--divider-color, #e0e0e0);
+        font-size: 0.85rem;
+        transition: filter 120ms ease-out;
+      }
+      .ha-link:hover { filter: brightness(0.96); }
+      .ha-link svg {
+        width: 1em; height: 1em;
+        flex-shrink: 0;
+        fill: currentColor;
+      }
 
       /* Candidate list */
       .candidate-list { display: flex; flex-direction: column; gap: 8px; }
@@ -1267,6 +1319,29 @@ function batteryClass(state) {
   if (n <= 10) return "is-critical";
   if (n <= 25) return "is-low";
   return "";
+}
+
+// Maps an integration domain to a human label and a brand-icon URL
+// (https://brands.home-assistant.io/...). Core integrations live under
+// `_/`, community ones under their own folder.
+const INTEGRATION_INFO = {
+  matter:        { label: "Matter",  icon: "https://brands.home-assistant.io/_/matter/icon.png" },
+  zha:           { label: "ZHA",     icon: "https://brands.home-assistant.io/_/zha/icon.png" },
+  zigbee2mqtt:   { label: "Z2M",     icon: "https://brands.home-assistant.io/zigbee2mqtt/icon.png" },
+  mqtt:          { label: "MQTT",    icon: "https://brands.home-assistant.io/_/mqtt/icon.png" },
+  zigbee:        { label: "Zigbee",  icon: "https://brands.home-assistant.io/_/zha/icon.png" },
+};
+
+function integrationChipHtml(integration) {
+  if (!integration) return "";
+  const info = INTEGRATION_INFO[integration] || {
+    label: integration,
+    icon: `https://brands.home-assistant.io/_/${encodeURIComponent(integration)}/icon.png`,
+  };
+  return `<span class="integration-chip" title="${escapeAttr(integration)}">
+    <img src="${escapeAttr(info.icon)}" alt="" loading="lazy" />
+    <span>${escapeHtml(info.label)}</span>
+  </span>`;
 }
 
 function batteryChipHtml(battery, batterySpec) {

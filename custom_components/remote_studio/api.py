@@ -50,6 +50,20 @@ def _ws_context(connection: websocket_api.ActiveConnection) -> Context:
     return Context(user_id=user_id)
 
 
+# Priority for picking a "primary" integration when a device is registered
+# with several. Matter/ZHA win over generic MQTT.
+_INTEGRATION_PRIORITY = ("matter", "zha", "zigbee2mqtt", "zigbee", "mqtt")
+
+
+def _device_integration(device) -> str | None:
+    """Return the integration domain we'd label this device with."""
+    domains = {ident[0] for ident in (device.identifiers or set())}
+    for domain in _INTEGRATION_PRIORITY:
+        if domain in domains:
+            return domain
+    return next(iter(sorted(domains)), None) if domains else None
+
+
 async def _load_svg_cached(
     hass: HomeAssistant, definition: RemoteDefinition
 ) -> str | None:
@@ -124,6 +138,7 @@ async def ws_list_remotes(
                     "manufacturer": device.manufacturer,
                     "model": device.model,
                     "definition_id": chosen.id,
+                    "integration": _device_integration(device),
                     "battery": _find_battery(hass, device.id),
                 }
             )
@@ -165,6 +180,7 @@ async def ws_list_remotes(
                 "device_name": device.name_by_user or device.name,
                 "manufacturer": device.manufacturer,
                 "model": device.model,
+                "integration": _device_integration(device),
             }
         )
 
@@ -233,6 +249,7 @@ async def ws_get_remote(
                 "name": device.name_by_user or device.name,
                 "manufacturer": device.manufacturer,
                 "model": device.model,
+                "integration": _device_integration(device),
             },
             "definition": _serialise_definition(definition),
             "svg": svg_text,
