@@ -8,12 +8,13 @@ manufacturers:
   - IKEA
   - IKEA of Sweden
   - Inter IKEA Systems
-# Model entries are matched as case-insensitive substrings, so the single
-# token "BILRESA" catches every BILRESA variant ("BILRESA Remote Control",
-# "BILRESA dual button remote control", etc.).
+# Model entries match as case-insensitive substrings. Tokens are kept
+# specific to *this* variant so a "BILRESA scroll wheel" device doesn't
+# get routed here by a bare "BILRESA" match.
 models:
-  - BILRESA
   - E2489
+  - BILRESA remote control with buttons
+  - BILRESA dual button
 svg: ikea_bilresa_e2489.svg
 
 # BILRESA E2489 over Matter exposes two event entities (one per physical

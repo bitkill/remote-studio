@@ -33,6 +33,7 @@ full guide at [`docs/authoring-remotes.md`](docs/authoring-remotes.md).
 
 - IKEA STYRBAR (Remote Control N2) — ZHA + Z2M
 - IKEA BILRESA 2-button (E2489) — Matter + Z2M
+- IKEA BILRESA scroll wheel (E2490) — Matter (9 channels)
 - Philips Hue Dimmer v2 (RWL022) — Z2M
 - Aqara Mini Switch (WXKG11LM) — ZHA + Z2M
 
