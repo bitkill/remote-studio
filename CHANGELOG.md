@@ -1,3 +1,10 @@
+## [0.14.1](https://github.com/bitkill/remote-studio/compare/v0.14.0...v0.14.1) (2026-05-06)
+
+
+### Bug Fixes
+
+* **storage:** subclass Store to provide v1->v2 migrator ([d56a71b](https://github.com/bitkill/remote-studio/commit/d56a71be7de335bc922ce978532b0bf8f4e679dc))
+
 # [0.14.0](https://github.com/bitkill/remote-studio/compare/v0.13.2...v0.14.0) (2026-05-06)
 
 
