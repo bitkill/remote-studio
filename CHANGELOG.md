@@ -1,3 +1,15 @@
+# [0.13.0](https://github.com/bitkill/remote-studio/compare/v0.12.0...v0.13.0) (2026-05-06)
+
+
+### Bug Fixes
+
+* look up the automation EntityComponent via its HassKey ([4bfd564](https://github.com/bitkill/remote-studio/commit/4bfd564882a6c7125b9a24bb012c428757daf909))
+
+
+### Features
+
+* **panel:** recent-events log on the index and device pages ([785629d](https://github.com/bitkill/remote-studio/commit/785629d4f20dff044185ca61f386c3e189232790))
+
 # [0.12.0](https://github.com/bitkill/remote-studio/compare/v0.11.0...v0.12.0) (2026-05-06)
 
 
