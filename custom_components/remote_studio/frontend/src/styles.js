@@ -294,18 +294,23 @@ export const css = `
     background: white;
   }
 
-  /* "Open in HA" link in the remote-detail header */
-  .ha-link {
-    display: inline-flex; align-items: center; gap: 6px;
-    text-decoration: none; color: inherit;
-    padding: 6px 12px; border-radius: 999px;
-    background: var(--secondary-background-color, #f4f4f4);
-    border: 1px solid var(--divider-color, #e0e0e0);
-    font-size: 0.85rem;
-    transition: filter 120ms ease-out;
+  /* Cog icon next to the device name → links to the HA device page. */
+  .device-title {
+    display: inline-flex; align-items: center; gap: 8px;
   }
-  .ha-link:hover { filter: brightness(0.96); }
-  .ha-link svg { width: 1em; height: 1em; flex-shrink: 0; fill: currentColor; }
+  .device-cog {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    color: inherit; opacity: 0.55;
+    text-decoration: none;
+    transition: opacity 120ms ease-out, background 120ms ease-out;
+  }
+  .device-cog:hover {
+    opacity: 1;
+    background: var(--secondary-background-color, #f4f4f4);
+  }
+  .device-cog svg { width: 18px; height: 18px; fill: currentColor; }
 
   /* ============================ Candidate list ======================= */
   .candidate-list { display: flex; flex-direction: column; gap: 8px; }
