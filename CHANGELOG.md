@@ -1,3 +1,10 @@
+# [0.14.0](https://github.com/bitkill/remote-studio/compare/v0.13.2...v0.14.0) (2026-05-06)
+
+
+### Features
+
+* **panel:** per-group target picker + role-driven default actions ([e284064](https://github.com/bitkill/remote-studio/commit/e28406474beef762be96e3cba152d7fc83fcb56f))
+
 ## [0.13.2](https://github.com/bitkill/remote-studio/compare/v0.13.1...v0.13.2) (2026-05-06)
 
 

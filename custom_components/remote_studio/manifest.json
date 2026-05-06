@@ -1,7 +1,7 @@
 {
   "domain": "remote_studio",
   "name": "Remote Studio",
-  "version": "0.13.2",
+  "version": "0.14.0",
   "documentation": "https://github.com/bitkill/remote-studio",
   "issue_tracker": "https://github.com/bitkill/remote-studio/issues",
   "codeowners": [
