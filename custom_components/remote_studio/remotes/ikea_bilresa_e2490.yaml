@@ -9,16 +9,19 @@ models:
   - BILRESA scroll wheel
 svg: ikea_bilresa_e2490.svg
 
-# Although Matter exposes 9 GenericSwitch endpoints on the BILRESA, they
-# group as 3 physical "dots" × 3 slots:
+# Physically the BILRESA scroll wheel is one wheel-button + three small
+# channel indicators. Matter exposes 9 GenericSwitch endpoints that
+# group as 3 "dots" × 3 slots:
 #
-#   Dot 1 → endpoint 1 (CW tick) · endpoint 2 (CCW tick) · endpoint 3 (press)
-#   Dot 2 → endpoint 4 (CW tick) · endpoint 5 (CCW tick) · endpoint 6 (press)
-#   Dot 3 → endpoint 7 (CW tick) · endpoint 8 (CCW tick) · endpoint 9 (press)
+#   Dot 1 → endpoint 1 (CW tick) · 2 (CCW tick) · 3 (press, with hold)
+#   Dot 2 → endpoint 4 (CW tick) · 5 (CCW tick) · 6 (press, with hold)
+#   Dot 3 → endpoint 7 (CW tick) · 8 (CCW tick) · 9 (press, with hold)
 #
-# We surface the 3 dots only — each as a button with rotate / press
-# gestures — so users see a layout that matches the physical remote.
 # Source: bilresa_three_light_dimmer_v2.yaml blueprint.
+#
+# We surface 4 states per dot — rotate_cw / rotate_ccw / press / hold —
+# matching the four actions a user actually wires up in practice.
+# (multi_press_2/3 and long_release are dropped to keep the editor tidy.)
 
 buttons:
   - id: dot1
@@ -36,22 +39,10 @@ buttons:
         label: "Press"
         sources:
           matter: { endpoint: 3, event: "multi_press_1" }
-      - id: double
-        label: "Double press"
-        sources:
-          matter: { endpoint: 3, event: "multi_press_2" }
-      - id: triple
-        label: "Triple press"
-        sources:
-          matter: { endpoint: 3, event: "multi_press_3" }
       - id: hold
-        label: "Hold"
+        label: "Long press"
         sources:
           matter: { endpoint: 3, event: "long_press" }
-      - id: release
-        label: "Release"
-        sources:
-          matter: { endpoint: 3, event: "long_release" }
 
   - id: dot2
     label: "Dot 2"
@@ -68,22 +59,10 @@ buttons:
         label: "Press"
         sources:
           matter: { endpoint: 6, event: "multi_press_1" }
-      - id: double
-        label: "Double press"
-        sources:
-          matter: { endpoint: 6, event: "multi_press_2" }
-      - id: triple
-        label: "Triple press"
-        sources:
-          matter: { endpoint: 6, event: "multi_press_3" }
       - id: hold
-        label: "Hold"
+        label: "Long press"
         sources:
           matter: { endpoint: 6, event: "long_press" }
-      - id: release
-        label: "Release"
-        sources:
-          matter: { endpoint: 6, event: "long_release" }
 
   - id: dot3
     label: "Dot 3"
@@ -100,19 +79,7 @@ buttons:
         label: "Press"
         sources:
           matter: { endpoint: 9, event: "multi_press_1" }
-      - id: double
-        label: "Double press"
-        sources:
-          matter: { endpoint: 9, event: "multi_press_2" }
-      - id: triple
-        label: "Triple press"
-        sources:
-          matter: { endpoint: 9, event: "multi_press_3" }
       - id: hold
-        label: "Hold"
+        label: "Long press"
         sources:
           matter: { endpoint: 9, event: "long_press" }
-      - id: release
-        label: "Release"
-        sources:
-          matter: { endpoint: 9, event: "long_release" }

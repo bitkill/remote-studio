@@ -19,6 +19,41 @@ const WS_TEST = "remote_studio/test_action";
 const WS_SUBSCRIBE = "remote_studio/subscribe_events";
 
 const ACTION_TEMPLATES = {
+  // Light-first defaults — most BILRESA / dimmer / button users want
+  // these as the day-one mapping.
+  brighten: [
+    {
+      service: "light.turn_on",
+      target: { entity_id: "light.REPLACE_ME" },
+      data: { brightness_step_pct: 10, transition: 0.3 },
+    },
+  ],
+  dim: [
+    {
+      service: "light.turn_on",
+      target: { entity_id: "light.REPLACE_ME" },
+      data: { brightness_step_pct: -10, transition: 0.3 },
+    },
+  ],
+  toggle: [
+    {
+      service: "light.toggle",
+      target: { entity_id: "light.REPLACE_ME" },
+      data: { transition: 0.3 },
+    },
+  ],
+  light_scene: [
+    {
+      service: "light.turn_on",
+      target: { entity_id: "light.REPLACE_ME" },
+      data: {
+        brightness_pct: 80,
+        rgb_color: [255, 217, 168],
+        transition: 0.5,
+      },
+    },
+  ],
+  // Generic fall-backs.
   service: [
     {
       service: "light.turn_on",
@@ -34,6 +69,14 @@ const ACTION_TEMPLATES = {
     },
   ],
   delay: [{ delay: { seconds: 1 } }],
+};
+
+// Map state-id prefix → recommended template, highlighted in the editor.
+const STATE_DEFAULT_TEMPLATE = {
+  rotate_cw: "brighten",
+  rotate_ccw: "dim",
+  press: "toggle",
+  hold: "light_scene",
 };
 
 class RemoteStudioPanel extends HTMLElement {
@@ -162,29 +205,67 @@ class RemoteStudioPanel extends HTMLElement {
   _onRemoteEvent(event) {
     if (!event || !event.device_id || !event.button_id) return;
     if (
-      this._view === "remote" &&
-      this._currentRemote?.device?.id === event.device_id
+      this._view !== "remote" ||
+      this._currentRemote?.device?.id !== event.device_id
     ) {
-      this._pulseButton(event.button_id);
+      return;
     }
-    // Future: also surface a toast/list of recent events.
+    this._pulseButton(event.button_id);
+    if (event.state_id) {
+      // Auto-jump to the firing button so the user sees its state list and
+      // editor light up in response to physical input.
+      if (this._selectedButtonId !== event.button_id) {
+        this._selectedButtonId = event.button_id;
+        // Don't reset the state's editor text — only update selection.
+        this._render();
+      }
+      this._pulseStateRow(event.state_id);
+      if (event.state_id.startsWith("rotate_")) {
+        this._pulseWheel();
+      }
+    }
   }
 
   // -------------------------------------------------------- pulsing
   _pulseButton(buttonId) {
+    this._addPulse(`button-${buttonId}`, 450);
+  }
+
+  _pulseStateRow(stateId) {
     const root = this.shadowRoot;
     if (!root) return;
-    const node = root.getElementById(`button-${buttonId}`);
-    if (!node) return;
-    node.classList.add("is-pulsing");
-    const key = buttonId;
+    const row = root.querySelector(
+      `.state-row[data-state-id="${cssEscape(stateId)}"]`,
+    );
+    if (!row) return;
+    row.classList.add("is-pulsing");
+    const key = `state:${stateId}`;
     const existing = this._pulseTimers.get(key);
     if (existing) clearTimeout(existing);
     const timer = setTimeout(() => {
-      node.classList.remove("is-pulsing");
+      row.classList.remove("is-pulsing");
       this._pulseTimers.delete(key);
-    }, 450);
+    }, 600);
     this._pulseTimers.set(key, timer);
+  }
+
+  _pulseWheel() {
+    this._addPulse("wheel", 480);
+  }
+
+  _addPulse(elementId, duration) {
+    const root = this.shadowRoot;
+    if (!root) return;
+    const node = root.getElementById(elementId);
+    if (!node) return;
+    node.classList.add("is-pulsing");
+    const existing = this._pulseTimers.get(elementId);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      node.classList.remove("is-pulsing");
+      this._pulseTimers.delete(elementId);
+    }, duration);
+    this._pulseTimers.set(elementId, timer);
   }
 
   // -------------------------------------------------------- render
@@ -658,6 +739,9 @@ class RemoteStudioPanel extends HTMLElement {
     const stateLabel =
       selectedButton.states.find((s) => s.id === this._selectedStateId)
         ?.label || this._selectedStateId;
+    const recommended = STATE_DEFAULT_TEMPLATE[this._selectedStateId];
+    const tplBtn = (key, label) =>
+      `<button data-template="${key}" class="${key === recommended ? "recommended" : ""}">${escapeHtml(label)}</button>`;
     return `
       <div class="editor">
         <div class="editor-header">
@@ -665,12 +749,19 @@ class RemoteStudioPanel extends HTMLElement {
           ${this._editorDirty ? '<span class="dirty">unsaved</span>' : ""}
         </div>
         <div class="quick-insert">
-          <span>Insert:</span>
-          <button data-template="service">Service call</button>
-          <button data-template="scene">Scene</button>
-          <button data-template="script">Script</button>
-          <button data-template="automation">Trigger automation</button>
-          <button data-template="delay">Delay</button>
+          <span>Light:</span>
+          ${tplBtn("brighten", "Brighten")}
+          ${tplBtn("dim", "Dim")}
+          ${tplBtn("toggle", "Toggle")}
+          ${tplBtn("light_scene", "Set scene")}
+        </div>
+        <div class="quick-insert">
+          <span>Other:</span>
+          ${tplBtn("service", "Service call")}
+          ${tplBtn("scene", "Scene")}
+          ${tplBtn("script", "Script")}
+          ${tplBtn("automation", "Trigger automation")}
+          ${tplBtn("delay", "Delay")}
         </div>
         <textarea class="editor-text" spellcheck="false"
           placeholder='Empty — use Insert above, or paste a JSON action list.'
@@ -681,7 +772,7 @@ class RemoteStudioPanel extends HTMLElement {
           <button data-act="test">Test</button>
           <button data-act="clear">Clear</button>
         </div>
-        <p class="hint">JSON list of action steps (matches HA's automation <code>action:</code> block). YAML editor coming later.</p>
+        <p class="hint">JSON list of action steps (matches HA's automation <code>action:</code> block).</p>
       </div>
     `;
   }
@@ -798,12 +889,19 @@ class RemoteStudioPanel extends HTMLElement {
       }
 
       /* State rows */
-      .state-row { cursor: pointer; transition: background 80ms ease-out; }
+      .state-row { cursor: pointer; transition: background 80ms ease-out, box-shadow 220ms ease-out; }
       .state-row.selected {
         border-color: var(--primary-color, #5b8def);
         background: var(--primary-color-light, #e3edff);
       }
       .state-row:hover { filter: brightness(0.97); }
+      .state-row.is-pulsing {
+        animation: rs-row-pulse 600ms ease-out 1;
+      }
+      @keyframes rs-row-pulse {
+        0%   { background: var(--rs-btn-pulse-fill, #ffd66e); box-shadow: 0 0 0 4px rgba(255, 214, 110, 0.3); }
+        100% { background: var(--card-background-color, #fff); box-shadow: 0 0 0 0 rgba(255, 214, 110, 0); }
+      }
 
       /* Action editor */
       .editor {
@@ -836,6 +934,12 @@ class RemoteStudioPanel extends HTMLElement {
         cursor: pointer;
       }
       .quick-insert button:hover { filter: brightness(0.96); }
+      .quick-insert button.recommended {
+        background: var(--primary-color, #5b8def);
+        color: var(--text-primary-color, #fff);
+        border-color: transparent;
+        font-weight: 600;
+      }
       .editor-text {
         width: 100%; min-height: 180px; box-sizing: border-box;
         padding: 12px; font-family: ui-monospace, SFMono-Regular, monospace;
@@ -944,6 +1048,14 @@ function escapeHtml(value) {
 
 function escapeAttr(value) {
   return escapeHtml(value);
+}
+
+function cssEscape(value) {
+  if (window.CSS && typeof window.CSS.escape === "function") {
+    return window.CSS.escape(value);
+  }
+  // Sufficient for our state ids (alnum + underscore).
+  return String(value).replace(/[^a-zA-Z0-9_-]/g, "\\$&");
 }
 
 function batteryPercent(state) {
