@@ -1,0 +1,23 @@
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+version: 2
+updates:
+  # Keep GitHub Actions versions in .github/workflows/* up to date.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: Europe/Lisbon
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      # Conventional Commits prefix so semantic-release recognises the bumps
+      # as `chore:` (non-releasing).
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+      - github-actions
