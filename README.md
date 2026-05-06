@@ -70,6 +70,24 @@ which is what registers the sidebar panel.
 - Backup before restarting is a one-click safety net:
   **Settings → System → Backups → Create backup**.
 
+## Branding
+
+The integration card in HACS and HA's Devices & Services pulls its icon
+from the [home-assistant/brands][brands] repository — without an entry
+there it shows a generic placeholder. Source assets live in this repo at
+[`brands/`](brands/) and are mirrored to a brands PR. To refresh the
+artwork, edit `brands/icon.svg` and re-render the PNGs:
+
+```bash
+magick -background none -density 384 brands/icon.svg -resize 256x256 brands/icon.png
+magick -background none -density 768 brands/icon.svg -resize 512x512 brands/icon@2x.png
+```
+
+Then mirror `brands/icon.png` and `brands/icon@2x.png` to a PR against
+`home-assistant/brands` under `custom_integrations/remote_studio/`.
+
+[brands]: https://github.com/home-assistant/brands
+
 ## Licence
 
 MIT.
