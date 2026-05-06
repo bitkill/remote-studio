@@ -21,7 +21,9 @@ import {
 } from "./constants.js";
 import { cssEscape } from "./helpers.js";
 import { css } from "./styles.js";
-import { renderEditor, renderList, renderRemoteView } from "./views.js";
+import { renderEditor } from "./views/editor.js";
+import { renderList } from "./views/list.js";
+import { renderRemoteView } from "./views/remote.js";
 
 export class RemoteStudioPanel extends HTMLElement {
   constructor() {
