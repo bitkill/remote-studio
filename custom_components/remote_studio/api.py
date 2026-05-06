@@ -50,6 +50,23 @@ def _ws_context(connection: websocket_api.ActiveConnection) -> Context:
     return Context(user_id=user_id)
 
 
+async def _load_svg_cached(
+    hass: HomeAssistant, definition: RemoteDefinition
+) -> str | None:
+    """Read a definition's SVG once and cache it on hass.data."""
+    cache = hass.data.setdefault(DOMAIN, {}).setdefault("svg_cache", {})
+    if definition.id in cache:
+        return cache[definition.id]
+    try:
+        svg = await hass.async_add_executor_job(
+            definition.svg_path.read_text, "utf-8"
+        )
+    except OSError:
+        svg = None
+    cache[definition.id] = svg
+    return svg
+
+
 @websocket_api.websocket_command({vol.Required("type"): "remote_studio/list_remotes"})
 @websocket_api.async_response
 async def ws_list_remotes(
@@ -150,12 +167,18 @@ async def ws_list_remotes(
             }
         )
 
+    serialised_defs: list[dict[str, Any]] = []
+    for d in registry.all():
+        s = _serialise_definition(d)
+        s["svg"] = await _load_svg_cached(hass, d)
+        serialised_defs.append(s)
+
     connection.send_result(
         msg["id"],
         {
             "remotes": remotes,
             "candidates": candidates,
-            "definitions": [_serialise_definition(d) for d in registry.all()],
+            "definitions": serialised_defs,
         },
     )
 
@@ -197,12 +220,7 @@ async def ws_get_remote(
         return
 
     store = await async_get_store(hass)
-    try:
-        svg_text: str | None = await hass.async_add_executor_job(
-            definition.svg_path.read_text, "utf-8"
-        )
-    except OSError:
-        svg_text = None
+    svg_text = await _load_svg_cached(hass, definition)
 
     battery = _find_battery(hass, device.id)
 

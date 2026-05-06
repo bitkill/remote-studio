@@ -285,10 +285,18 @@ class RemoteStudioPanel extends HTMLElement {
   }
 
   _onRemoteEvent(event) {
-    if (!event || !event.device_id || !event.button_id) return;
+    if (!event || !event.device_id) return;
+
+    // List view: highlight the matching remote card.
+    if (this._view === "list") {
+      this._pulseCard(event.device_id);
+      return;
+    }
+
     if (
       this._view !== "remote" ||
-      this._currentRemote?.device?.id !== event.device_id
+      this._currentRemote?.device?.id !== event.device_id ||
+      !event.button_id
     ) {
       return;
     }
@@ -306,6 +314,27 @@ class RemoteStudioPanel extends HTMLElement {
         this._pulseWheel();
       }
     }
+  }
+
+  _pulseCard(deviceId) {
+    const root = this.shadowRoot;
+    if (!root) return;
+    const card = root.querySelector(
+      `button.card[data-device-id="${cssEscape(deviceId)}"]`,
+    );
+    if (!card) return;
+    // Restart the animation if it's already running.
+    card.classList.remove("is-pulsing");
+    void card.offsetWidth;
+    card.classList.add("is-pulsing");
+    const key = `card:${deviceId}`;
+    const existing = this._pulseTimers.get(key);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      card.classList.remove("is-pulsing");
+      this._pulseTimers.delete(key);
+    }, 1900);
+    this._pulseTimers.set(key, timer);
   }
 
   // -------------------------------------------------------- pulsing
@@ -656,15 +685,29 @@ class RemoteStudioPanel extends HTMLElement {
 
   // -------------------------------------------------------- views
   _renderList() {
+    const definitionsById = new Map(
+      this._definitions.map((d) => [d.id, d]),
+    );
     const remotes = this._remotes
-      .map(
-        (r) => `
-        <button class="card" data-device-id="${escapeAttr(r.device_id)}">
-          <div class="title">${escapeHtml(r.device_name) || "Unnamed remote"}</div>
-          <div class="meta">${escapeHtml(r.manufacturer || "")} · ${escapeHtml(r.model || "")}</div>
-          <div class="def">Layout: <code>${escapeHtml(r.definition_id)}</code></div>
-        </button>`,
-      )
+      .map((r) => {
+        const def = definitionsById.get(r.definition_id);
+        const thumb = def?.svg ? def.svg : "";
+        const layoutName = def?.name || r.definition_id;
+        const battery = def?.battery
+          ? `<span class="card-chip">🔋 ${escapeHtml(String(def.battery.count))}×${escapeHtml(def.battery.type)}</span>`
+          : "";
+        return `
+          <button class="card" data-device-id="${escapeAttr(r.device_id)}">
+            <div class="card-thumb">${thumb}</div>
+            <div class="card-body">
+              <div class="card-title">${escapeHtml(r.device_name) || "Unnamed remote"}</div>
+              <div class="card-meta">${escapeHtml(layoutName)}</div>
+              <div class="card-meta-soft">${escapeHtml(r.manufacturer || "")}${r.model ? ` · ${escapeHtml(r.model)}` : ""}</div>
+              <div class="card-chips">${battery}</div>
+            </div>
+            <div class="card-arrow">›</div>
+          </button>`;
+      })
       .join("");
     const defs = this._definitions
       .map(
@@ -893,7 +936,7 @@ class RemoteStudioPanel extends HTMLElement {
       section { margin-bottom: 32px; }
       .grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
         gap: 12px;
       }
       .card {
@@ -903,14 +946,51 @@ class RemoteStudioPanel extends HTMLElement {
         cursor: pointer;
         background: var(--card-background-color, #fff);
         border: 1px solid var(--divider-color, #e0e0e0);
-        border-radius: 12px;
-        padding: 16px;
+        border-radius: 14px;
+        padding: 14px 16px;
+        display: grid;
+        grid-template-columns: 64px 1fr auto;
+        align-items: center;
+        gap: 16px;
+        transition: transform 120ms ease-out, box-shadow 200ms ease-out, border-color 200ms ease-out;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
       }
-      .card:hover { filter: brightness(0.97); }
-      .title { font-weight: 600; margin-bottom: 4px; }
-      .meta { opacity: 0.7; font-size: 0.85rem; }
-      .def { margin-top: 8px; font-size: 0.85rem; }
-      code { background: var(--secondary-background-color, #f4f4f4); padding: 1px 6px; border-radius: 4px; }
+      .card:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.07);
+      }
+      .card-thumb {
+        width: 64px; height: 88px;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--secondary-background-color, #f7f5f0);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .card-thumb svg { width: 100%; height: 100%; pointer-events: none; }
+      .card-thumb svg .rs-button { cursor: inherit; pointer-events: none; }
+      .card-body { min-width: 0; }
+      .card-title { font-weight: 600; font-size: 1.02rem; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .card-meta { font-size: 0.9rem; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .card-meta-soft { font-size: 0.78rem; opacity: 0.55; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .card-chips { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+      .card-chip {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 2px 8px; border-radius: 999px;
+        background: var(--secondary-background-color, #f4f4f4);
+        font-size: 0.74rem; font-variant-numeric: tabular-nums;
+      }
+      .card-arrow {
+        font-size: 1.4rem; opacity: 0.35;
+        align-self: center; padding-right: 4px;
+      }
+      .card.is-pulsing {
+        animation: rs-card-pulse 1.8s ease-out 1;
+      }
+      @keyframes rs-card-pulse {
+        0%   { box-shadow: 0 0 0 0 rgba(255, 214, 110, 0.55), 0 1px 2px rgba(0,0,0,0.04); border-color: var(--rs-btn-pulse-fill, #ffd66e); }
+        50%  { box-shadow: 0 0 0 14px rgba(255, 214, 110, 0); border-color: var(--rs-btn-pulse-fill, #ffd66e); }
+        100% { box-shadow: 0 1px 2px rgba(0,0,0,0.04); border-color: var(--divider-color, #e0e0e0); }
+      }
       .empty {
         padding: 32px; text-align: center; opacity: 0.7;
         border: 1px dashed var(--divider-color, #e0e0e0);
