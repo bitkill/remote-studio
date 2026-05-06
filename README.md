@@ -37,8 +37,38 @@ full guide at [`docs/authoring-remotes.md`](docs/authoring-remotes.md).
 
 ## Install
 
-Not yet on HACS. For local dev, copy `custom_components/remote_studio/` into
-your HA config's `custom_components/` directory and restart.
+### Via HACS (recommended)
+
+1. **HACS → Integrations → ⋮ menu → Custom repositories**
+2. Add this repo:
+   - **Repository:** `https://github.com/bitkill/remote-studio`
+   - **Type:** `Integration`
+3. Open the new "Remote Studio" card → **Download**.
+4. **Settings → System → Restart** (full HA restart — required for HA to
+   pick up custom integrations; reload won't do).
+5. After HA is back: **Settings → Devices & Services → + Add Integration**
+   → search **Remote Studio** → click it → **Submit** on the empty form.
+
+The "Remote Studio" entry only appears in the sidebar **after step 5** —
+the restart alone isn't enough. The custom_components folder makes HA
+*aware* of the integration; the Add Integration step *activates* it,
+which is what registers the sidebar panel.
+
+### Manual install (no HACS)
+
+1. Copy `custom_components/remote_studio/` into your HA config's
+   `custom_components/` directory.
+2. **Settings → System → Restart**.
+3. **Settings → Devices & Services → + Add Integration → Remote Studio
+   → Submit**.
+
+### First-run check
+
+- Sidebar shows a **Remote Studio** entry. If not, you skipped step 5.
+- If the integration card in Devices & Services has a red error chip,
+  check **Settings → System → Logs** for `remote_studio` lines.
+- Backup before restarting is a one-click safety net:
+  **Settings → System → Backups → Create backup**.
 
 ## Licence
 
