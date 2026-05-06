@@ -1,3 +1,10 @@
+# [0.11.0](https://github.com/bitkill/remote-studio/compare/v0.10.0...v0.11.0) (2026-05-06)
+
+
+### Features
+
+* **panel:** rename views to index/device, move device URL behind /device/ ([9bb6d30](https://github.com/bitkill/remote-studio/commit/9bb6d30337c40bc333ee507c34b692980ff48962))
+
 # [0.10.0](https://github.com/bitkill/remote-studio/compare/v0.9.0...v0.10.0) (2026-05-06)
 
 
