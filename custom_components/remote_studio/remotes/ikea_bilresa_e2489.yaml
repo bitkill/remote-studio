@@ -1,0 +1,74 @@
+id: ikea_bilresa_e2489
+name: IKEA BILRESA (2-button)
+manufacturer: IKEA of Sweden
+# IKEA's Matter remotes register with a few different manufacturer/model
+# strings depending on firmware and integration. Listing the common ones
+# so auto-discovery hits more often; users can still pair manually.
+models:
+  - E2489
+  - BILRESA remote control with buttons
+  - BILRESA dual button remote control
+svg: ikea_bilresa_e2489.svg
+
+# BILRESA E2489 over Matter exposes two event entities (one per physical
+# button, on endpoints 1 and 2). The Matter SwitchClusterEvents map onto
+# HA's `event_type` attribute as: initial_press, long_press, short_release,
+# long_release, multi_press_ongoing, multi_press_complete (with
+# multi_press_count for double / triple counts).
+#
+# The Z2M action strings (E2489 over Zigbee2MQTT) are also wired so the
+# same definition works for users running BILRESA via Zigbee.
+buttons:
+  - id: top
+    label: "I (top)"
+    states:
+      - id: press
+        label: "Press"
+        sources:
+          matter: { endpoint: 1, event: "initial_press" }
+          z2m:    { action: "on" }
+      - id: hold
+        label: "Hold"
+        sources:
+          matter: { endpoint: 1, event: "long_press" }
+          z2m:    { action: "brightness_move_up" }
+      - id: release
+        label: "Release"
+        sources:
+          matter: { endpoint: 1, event: "long_release" }
+          z2m:    { action: "brightness_stop" }
+      - id: double
+        label: "Double press"
+        sources:
+          matter:
+            endpoint: 1
+            event: "multi_press_complete"
+            attributes: { multi_press_count: 2 }
+          z2m: { action: "on_double" }
+
+  - id: bottom
+    label: "O (bottom)"
+    states:
+      - id: press
+        label: "Press"
+        sources:
+          matter: { endpoint: 2, event: "initial_press" }
+          z2m:    { action: "off" }
+      - id: hold
+        label: "Hold"
+        sources:
+          matter: { endpoint: 2, event: "long_press" }
+          z2m:    { action: "brightness_move_down" }
+      - id: release
+        label: "Release"
+        sources:
+          matter: { endpoint: 2, event: "long_release" }
+          z2m:    { action: "brightness_stop" }
+      - id: double
+        label: "Double press"
+        sources:
+          matter:
+            endpoint: 2
+            event: "multi_press_complete"
+            attributes: { multi_press_count: 2 }
+          z2m: { action: "off_double" }

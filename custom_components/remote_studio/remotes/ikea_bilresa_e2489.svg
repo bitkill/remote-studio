@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 220 320"
+     role="img"
+     aria-label="IKEA BILRESA 2-button remote">
+  <style>
+    .rs-body { fill: var(--rs-body-fill, #ffffff); stroke: var(--rs-body-stroke, #d8d4cd); stroke-width: 2; }
+    .rs-button { cursor: pointer; transition: filter 120ms ease-in-out; }
+    .rs-button rect, .rs-button circle, .rs-button path.btn-shape {
+      fill: var(--rs-btn-fill, #faf8f4);
+      stroke: var(--rs-btn-stroke, #c8c2b6);
+      stroke-width: 1.5;
+    }
+    .rs-button:hover { filter: brightness(0.96); }
+    .rs-button.is-active rect,
+    .rs-button.is-active circle,
+    .rs-button.is-active path.btn-shape {
+      fill: var(--rs-btn-active-fill, #d8e8ff);
+      stroke: var(--rs-btn-active-stroke, #5b8def);
+    }
+    .rs-label { fill: var(--rs-label-fill, #38322a); font-family: system-ui, sans-serif; font-weight: 600; pointer-events: none; }
+    .rs-glyph { fill: none; stroke: var(--rs-label-fill, #38322a); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+  </style>
+
+  <!-- Body: rounded rectangle. -->
+  <rect class="rs-body" x="20" y="20" width="180" height="280" rx="32" ry="32" />
+
+  <!-- Top button (I) -->
+  <g id="button-top" class="rs-button">
+    <rect x="40" y="40" width="140" height="110" rx="20" ry="20" />
+    <line class="rs-glyph" x1="110" y1="78" x2="110" y2="112" />
+  </g>
+
+  <!-- Bottom button (O) -->
+  <g id="button-bottom" class="rs-button">
+    <rect x="40" y="170" width="140" height="110" rx="20" ry="20" />
+    <circle cx="110" cy="225" r="20" fill="none" stroke="var(--rs-label-fill, #38322a)" stroke-width="4" />
+  </g>
+</svg>

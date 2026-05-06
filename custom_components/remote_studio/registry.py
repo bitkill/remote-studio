@@ -37,7 +37,19 @@ _ZHA_SOURCE = vol.Schema(
     }
 )
 _Z2M_SOURCE = vol.Schema({vol.Required("action"): str})
-_MATTER_SOURCE = vol.Schema({vol.Required("event"): str})
+_MATTER_SOURCE = vol.Schema(
+    {
+        vol.Required("event"): str,
+        # 1-based index into the device's event entities (sorted by unique_id).
+        # For multi-button Matter remotes each physical button is a separate
+        # endpoint and HA registers one event entity per endpoint.
+        vol.Optional("endpoint", default=1): vol.Coerce(int),
+        # Optional extra match keys (e.g. multi_press_count) — when set, all
+        # listed attribute name/value pairs must match the event entity's
+        # attributes for this state to fire.
+        vol.Optional("attributes"): dict,
+    }
+)
 
 _SOURCES = vol.All(
     vol.Schema(
@@ -103,12 +115,21 @@ class RemoteDefinition:
     buttons: tuple[ButtonDef, ...]
     source_path: Path
 
-    # Per-integration indices: signature_key -> (button_id, state_id)
+    # Per-integration indices.
     zha_index: dict[str, list[tuple[str, str, dict[str, Any]]]] = field(
         default_factory=dict
     )
     z2m_index: dict[str, tuple[str, str]] = field(default_factory=dict)
-    matter_index: dict[str, tuple[str, str]] = field(default_factory=dict)
+    # Matter index keyed by (endpoint, event_type) -> list of
+    # (button_id, state_id, attribute_filter). The attribute filter lets us
+    # disambiguate, e.g., multi_press_count=2 vs 3.
+    matter_index: dict[
+        tuple[int, str], list[tuple[str, str, dict[str, Any]]]
+    ] = field(default_factory=dict)
+
+    @property
+    def has_matter(self) -> bool:
+        return bool(self.matter_index)
 
     def matches_device(self, manufacturer: str | None, model: str | None) -> bool:
         """Return True if this definition fits a device with given manufacturer/model."""
@@ -136,8 +157,20 @@ class RemoteDefinition:
     def match_z2m(self, action: str) -> tuple[str, str] | None:
         return self.z2m_index.get(action)
 
-    def match_matter(self, event: str) -> tuple[str, str] | None:
-        return self.matter_index.get(event)
+    def match_matter(
+        self,
+        endpoint: int,
+        event_type: str,
+        attributes: dict[str, Any] | None = None,
+    ) -> tuple[str, str] | None:
+        candidates = self.matter_index.get((endpoint, event_type))
+        if not candidates:
+            return None
+        attrs = attributes or {}
+        for button_id, state_id, attr_filter in candidates:
+            if all(attrs.get(k) == v for k, v in attr_filter.items()):
+                return button_id, state_id
+        return None
 
 
 # -------------------------------------------------------------------- loading
@@ -187,7 +220,14 @@ def _build_definition(raw: dict[str, Any], source_path: Path) -> RemoteDefinitio
                 definition.z2m_index[z2m["action"]] = (button.id, state.id)
             matter = state.sources.get("matter")
             if matter is not None:
-                definition.matter_index[matter["event"]] = (button.id, state.id)
+                key = (int(matter["endpoint"]), matter["event"])
+                definition.matter_index.setdefault(key, []).append(
+                    (
+                        button.id,
+                        state.id,
+                        dict(matter.get("attributes") or {}),
+                    )
+                )
 
     return definition
 

@@ -22,8 +22,9 @@ from collections.abc import Callable
 from typing import Any
 
 from homeassistant.core import Event, HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.script import Script
 
 from .const import DOMAIN
@@ -46,6 +47,8 @@ class EventRuntime:
         self._store: MappingStore | None = None
         self._registry: DefinitionRegistry | None = None
         self._z2m_name_cache: dict[str, str] = {}
+        # entity_id -> (device_id, endpoint_index)
+        self._matter_entity_index: dict[str, tuple[str, int]] = {}
 
     async def async_start(self) -> None:
         self._store = await async_get_store(self._hass)
@@ -54,6 +57,7 @@ class EventRuntime:
             self._hass.bus.async_listen(ZHA_EVENT, self._handle_zha_event)
         )
         await self._setup_mqtt()
+        self._setup_matter()
 
     async def async_stop(self) -> None:
         for unsub in self._unsubs:
@@ -140,6 +144,83 @@ class EventRuntime:
                 self._z2m_name_cache[friendly_name] = device.id
                 return device.id
         return None
+
+    # -------------------------------------------------------------- Matter
+    def _setup_matter(self) -> None:
+        """Discover Matter event entities for matched devices and subscribe.
+
+        Matter exposes one ``event`` entity per physical button (one per
+        endpoint). HA materialises the Matter SwitchClusterEvents as state
+        changes on these entities; the latest event_type lives in
+        ``new_state.attributes['event_type']``.
+
+        Entity-to-endpoint mapping: Matter integration unique_ids embed the
+        endpoint, but the format isn't part of the public contract. We sort
+        the device's matter event entities by unique_id (stable ordering for
+        a given install) and assign 1-based endpoint indices in that order.
+        """
+        if self._registry is None:
+            return
+        device_reg = dr.async_get(self._hass)
+        entity_reg = er.async_get(self._hass)
+        watched: list[str] = []
+
+        for device in device_reg.devices.values():
+            defs = self._registry.find_for_device(device.manufacturer, device.model)
+            if not defs or not any(d.has_matter for d in defs):
+                continue
+            entries = sorted(
+                (
+                    e
+                    for e in er.async_entries_for_device(
+                        entity_reg, device.id, include_disabled_entities=False
+                    )
+                    if e.domain == "event" and e.platform == "matter"
+                ),
+                key=lambda e: e.unique_id or e.entity_id,
+            )
+            for index, entry in enumerate(entries, start=1):
+                self._matter_entity_index[entry.entity_id] = (device.id, index)
+                watched.append(entry.entity_id)
+
+        if not watched:
+            return
+        unsub = async_track_state_change_event(
+            self._hass, watched, self._handle_matter_state_change
+        )
+        self._unsubs.append(unsub)
+
+    @callback
+    def _handle_matter_state_change(self, event: Event) -> None:
+        new_state = event.data.get("new_state")
+        old_state = event.data.get("old_state")
+        if new_state is None:
+            return
+        # Skip the initial "no state" announcement on startup.
+        if old_state is None:
+            return
+        entity_id = new_state.entity_id
+        attrs = dict(new_state.attributes or {})
+        event_type = attrs.get("event_type")
+        if not event_type:
+            return
+        meta = self._matter_entity_index.get(entity_id)
+        if meta is None:
+            return
+        device_id, endpoint = meta
+        if self._registry is None:
+            return
+        device = dr.async_get(self._hass).async_get(device_id)
+        if device is None:
+            return
+        for definition in self._registry.find_for_device(
+            device.manufacturer, device.model
+        ):
+            match = definition.match_matter(endpoint, event_type, attrs)
+            if match is not None:
+                button_id, state_id = match
+                self._dispatch(device_id, button_id, state_id)
+                return
 
     # ---------------------------------------------------------- dispatch
     def _defs_for_device(self, device_id: str) -> list[RemoteDefinition]:

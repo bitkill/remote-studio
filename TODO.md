@@ -20,11 +20,20 @@ Steps:
 If the design needs revising first, edit `brands/icon.svg` and re-render
 with the magick commands in the [README](README.md#branding).
 
-### Matter event entity support
-`runtime.py` stubs Matter — it doesn't yet subscribe to Matter event
-entities. Each remote definition's `matter:` source key is recognised
-but never matches. Add a state-changed listener on the relevant event
-entities and route through the existing dispatch path.
+### Matter — late device discovery + endpoint mapping robustness
+Matter event-entity listening landed in v0.2.0 but has two known sharp
+edges:
+
+1. The runtime scans for Matter event entities **once at integration
+   setup**. If a BILRESA (or any Matter remote) is paired *after* the
+   integration is already running, the new entity isn't subscribed —
+   reload the integration to pick it up. Fix: listen for
+   `device_registry_updated` / `entity_registry_updated` and refresh.
+2. Endpoint-to-button mapping currently sorts the device's matter
+   `event` entities by `unique_id` and assigns 1-based indices in that
+   order. This works for the BILRESA (2 endpoints) but isn't a public
+   contract of the Matter integration. Fix: parse the endpoint number
+   directly from each entity's `unique_id` once we confirm the format.
 
 ### Hue Dimmer v2 over ZHA
 The Z2M sources are wired in `remotes/hue_dimmer_v2.yaml`, but the ZHA
