@@ -8,10 +8,15 @@
  *   helpers.js       — escape, formatting, battery icon picker, etc.
  *   chips.js         — integration & battery chip HTML helpers
  *   styles.js        — all CSS for the shadow root
- *   views/list.js    — home view (cards + candidates + layouts)
- *   views/remote.js  — remote-detail view (SVG + button & state lists)
+ *   views/index.js   — index page (cards + unmatched candidates)
+ *   views/device.js  — device page (SVG + button & state lists)
  *   views/editor.js  — per-state JSON action editor
  *   panel.js         — the RemoteStudioPanel custom element class
+ *
+ * Routes:
+ *   /remote-studio                            → index view
+ *   /remote-studio/device/<device_id>         → device view
+ *   /remote-studio/device/<device_id>:<def>   → device view, manual layout
  *
  * This file is intentionally tiny — it just registers the element.
  */

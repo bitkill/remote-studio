@@ -1,5 +1,5 @@
 /**
- * Home view — discovered remotes, unmatched candidates, available layouts.
+ * Index view — discovered remotes, unmatched candidates.
  *
  * Called as a method on RemoteStudioPanel (`this` is the panel instance),
  * so it reads state via `this._remotes`, `this._definitions`, etc.
@@ -7,7 +7,7 @@
 import { batteryChipHtml, integrationChipHtml } from "../chips.js";
 import { escapeAttr, escapeHtml, mdiIcon } from "../helpers.js";
 
-export function renderList() {
+export function renderIndex() {
   const definitionsById = new Map(this._definitions.map((d) => [d.id, d]));
 
   const filterText = (this._filterText || "").trim().toLowerCase();
@@ -117,7 +117,9 @@ function renderCard(remote, definitionsById) {
   const def = definitionsById.get(remote.definition_id);
   const thumb = def?.svg ? def.svg : "";
   const layoutName = def?.name || remote.definition_id;
-  const battery = batteryChipHtml(remote.battery, def?.battery);
+  const battery = batteryChipHtml(remote.battery, def?.battery, {
+    hideTypeWhenOk: true,
+  });
   const integration = integrationChipHtml(remote.integration);
   // The layout name already conveys make/model — drop the extra
   // "manufacturer · model" line. Show the area instead, if one is set.

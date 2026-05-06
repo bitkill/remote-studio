@@ -40,28 +40,46 @@ if (!headless) {
 await page.waitForLoadState("networkidle").catch(() => {});
 await page.waitForTimeout(1500);
 
-// Pierce HA's nested shadow roots until we land inside the panel, then
-// dump the rendered HTML of the relevant header so you can see whether
-// .device-cog is actually there.
+// Find the panel — works against both real HA (nested shadow roots) and
+// the local dev shim (panel sits directly in the body).
 const result = await page.evaluate(() => {
-  const piercePath = [
-    "home-assistant",
-    "home-assistant-main",
-    "partial-panel-resolver",
-    "remote-studio-panel",
-  ];
-  let node = document;
-  for (const sel of piercePath) {
-    const el = (node.shadowRoot || node).querySelector(sel) || (node.querySelector?.(sel));
-    if (!el) return { error: `couldn't find ${sel} (got as far as ${piercePath.indexOf(sel)})` };
-    node = el;
+  let panel = document.querySelector("remote-studio-panel");
+  if (!panel) {
+    const piercePath = [
+      "home-assistant",
+      "home-assistant-main",
+      "partial-panel-resolver",
+      "remote-studio-panel",
+    ];
+    let node = document;
+    for (const sel of piercePath) {
+      const el =
+        (node.shadowRoot || node).querySelector(sel) ||
+        node.querySelector?.(sel);
+      if (!el) {
+        return {
+          error: `couldn't find ${sel} (got as far as ${piercePath.indexOf(sel)})`,
+        };
+      }
+      node = el;
+    }
+    panel = node;
   }
-  const root = node.shadowRoot;
+  const root = panel.shadowRoot;
   if (!root) return { error: "panel has no shadowRoot" };
+  const targetSelect = root.querySelector("[data-target]");
+  const groups = targetSelect
+    ? [...targetSelect.querySelectorAll("optgroup")].map((g) => ({
+        label: g.label,
+        count: g.children.length,
+        sample: [...g.children].slice(0, 3).map((o) => `${o.textContent.trim()}|${o.value}`),
+      }))
+    : null;
   return {
-    deviceCog: root.querySelector(".device-cog")?.outerHTML ?? null,
-    deviceTitle: root.querySelector(".device-title")?.outerHTML ?? null,
-    headerHtml: root.querySelector(".page-header")?.outerHTML ?? null,
+    deviceCog: root.querySelector(".device-cog")?.outerHTML?.slice(0, 200) ?? null,
+    deviceTitle: root.querySelector(".device-title h1, .device-title")?.tagName ?? null,
+    targetGroups: groups,
+    targetOptionCount: targetSelect?.querySelectorAll("option").length ?? 0,
     bodyHasContent: root.innerHTML.length,
   };
 });

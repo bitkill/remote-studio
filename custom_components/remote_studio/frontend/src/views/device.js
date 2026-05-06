@@ -1,8 +1,8 @@
 /**
- * Remote-detail view — SVG layout, button list, state list, editor.
+ * Device view — SVG layout, button list, state list, editor.
  *
  * Called as a method on RemoteStudioPanel. The header includes the
- * integration chip, battery chip, "Open in HA" link and Test-mode toggle.
+ * integration chip, battery chip, cog link, and Test-mode toggle.
  */
 import { batteryChipHtml, integrationChipHtml } from "../chips.js";
 import {
@@ -13,7 +13,7 @@ import {
 } from "../helpers.js";
 import { renderEditor } from "./editor.js";
 
-export function renderRemoteView() {
+export function renderDevice() {
   if (!this._currentRemote) {
     return `
       <header class="page-header">

@@ -22,15 +22,29 @@ export function integrationChipHtml(integration) {
   </span>`;
 }
 
-export function batteryChipHtml(battery, batterySpec) {
+/**
+ * Render the battery chip.
+ *
+ *   battery     {state, unit, entity_id} from list_remotes / get_remote (live state)
+ *   batterySpec {count, type}            from the layout definition
+ *   options.hideTypeWhenOk
+ *               When true, the "· N×TYPE" part is suppressed unless the
+ *               battery is low/critical or unknown — surfaces the type
+ *               only when it actually matters for replacement. Used by
+ *               the index cards to keep them tight.
+ */
+export function batteryChipHtml(battery, batterySpec, options = {}) {
   if (!battery && !batterySpec) return "";
   const status = battery
     ? `${escapeHtml(String(battery.state))}${escapeHtml(battery.unit || "%")}`
     : "no status reported";
-  const specPart = batterySpec
+  const cls = battery ? batteryClass(battery.state) : "is-unknown";
+  const replacementSoon = cls === "is-low" || cls === "is-critical";
+  const showSpec =
+    batterySpec && (!options.hideTypeWhenOk || replacementSoon);
+  const specPart = showSpec
     ? ` · ${escapeHtml(String(batterySpec.count))}×${escapeHtml(batterySpec.type)}`
     : "";
-  const cls = battery ? batteryClass(battery.state) : "is-unknown";
   const titleAttr = battery?.entity_id
     ? ` title="${escapeAttr(battery.entity_id)}"`
     : "";

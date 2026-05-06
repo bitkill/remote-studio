@@ -5,15 +5,54 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Remote Studio — local dev</title>
     <style>
-      :root { color-scheme: light dark; }
+      /*
+       * Mirror Home Assistant's default light/dark theme so the panel
+       * looks the same locally as it does inside HA. CSS custom
+       * properties cross shadow-DOM boundaries by default, so anything
+       * declared on :root here is reachable from inside our panel's
+       * shadow root.
+       */
+      :root {
+        color-scheme: light dark;
+        --primary-color: #03a9f4;
+        --accent-color: #ff9800;
+        --primary-text-color: #212121;
+        --secondary-text-color: #727272;
+        --disabled-text-color: #bdbdbd;
+        --text-primary-color: #ffffff;
+        --divider-color: rgba(0, 0, 0, 0.12);
+        --card-background-color: #ffffff;
+        --primary-background-color: #fafafa;
+        --secondary-background-color: #e5e5e5;
+        --paper-card-background-color: var(--card-background-color);
+        --warning-color: #ffa600;
+        --error-color: #db4437;
+        --success-color: #4caf50;
+        --primary-color-light: #d1e9ff;
+        --paper-font-body1_-_font-family: var(
+          --paper-font-common-base_-_font-family,
+          Roboto, Noto, sans-serif
+        );
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --primary-text-color: #e1e1e1;
+          --secondary-text-color: #9b9b9b;
+          --disabled-text-color: #6f6f6f;
+          --divider-color: rgba(225, 225, 225, 0.12);
+          --card-background-color: #1c1c1c;
+          --primary-background-color: #111111;
+          --secondary-background-color: #202020;
+          --primary-color-light: #1d3a52;
+        }
+      }
+
       html, body { margin: 0; height: 100%; }
       body {
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-        background: #f6f5f1;
-        color: #1f1f1f;
-      }
-      @media (prefers-color-scheme: dark) {
-        body { background: #1a1a1a; color: #eaeaea; }
+        font-family: var(--paper-font-body1_-_font-family);
+        background: var(--primary-background-color);
+        color: var(--primary-text-color);
       }
       .dev-banner {
         position: fixed; top: 0; right: 0;

@@ -18,58 +18,153 @@ export const WS_CLEAR = "remote_studio/clear_mapping";
 export const WS_TEST = "remote_studio/test_action";
 export const WS_SUBSCRIBE = "remote_studio/subscribe_events";
 
-export const ACTION_TEMPLATES = {
-  // Light-first defaults — most BILRESA / dimmer / button users want
-  // these as the day-one mapping.
-  brighten: [
-    {
-      service: "light.turn_on",
-      target: { entity_id: "light.REPLACE_ME" },
-      data: { brightness_step_pct: 10, transition: 0.3 },
-    },
-  ],
-  dim: [
-    {
-      service: "light.turn_on",
-      target: { entity_id: "light.REPLACE_ME" },
-      data: { brightness_step_pct: -10, transition: 0.3 },
-    },
-  ],
-  toggle: [
-    {
-      service: "light.toggle",
-      target: { entity_id: "light.REPLACE_ME" },
-      data: { transition: 0.3 },
-    },
-  ],
-  light_scene: [
-    {
-      service: "light.turn_on",
-      target: { entity_id: "light.REPLACE_ME" },
-      data: {
-        brightness_pct: 80,
-        rgb_color: [255, 217, 168],
-        transition: 0.5,
-      },
-    },
-  ],
-  // Generic fall-backs.
-  service: [
-    {
-      service: "light.turn_on",
-      target: { entity_id: "light.REPLACE_ME" },
-    },
-  ],
-  scene: [{ service: "scene.turn_on", target: { entity_id: "scene.REPLACE_ME" } }],
-  script: [{ service: "script.turn_on", target: { entity_id: "script.REPLACE_ME" } }],
-  automation: [
-    {
-      service: "automation.trigger",
-      target: { entity_id: "automation.REPLACE_ME" },
-    },
-  ],
-  delay: [{ delay: { seconds: 1 } }],
+// Domains that the target-entity picker exposes — anything the user is
+// likely to control from a remote button. Order is the order shown in
+// the picker's optgroups.
+export const TARGET_DOMAINS = [
+  "light",
+  "switch",
+  "fan",
+  "scene",
+  "script",
+  "automation",
+  "cover",
+  "media_player",
+  "lock",
+  "input_boolean",
+  "humidifier",
+];
+
+// Friendly group labels for the target picker.
+export const TARGET_DOMAIN_LABELS = {
+  light: "Lights",
+  switch: "Switches",
+  fan: "Fans",
+  scene: "Scenes",
+  script: "Scripts",
+  automation: "Automations",
+  cover: "Covers",
+  media_player: "Media players",
+  lock: "Locks",
+  input_boolean: "Helpers (toggle)",
+  humidifier: "Humidifiers",
 };
+
+const PLACEHOLDER = {
+  light: "light.REPLACE_ME",
+  switch: "switch.REPLACE_ME",
+  scene: "scene.REPLACE_ME",
+  script: "script.REPLACE_ME",
+  automation: "automation.REPLACE_ME",
+};
+
+function domainOf(entityId) {
+  if (!entityId || !entityId.includes(".")) return "";
+  return entityId.split(".", 1)[0];
+}
+
+// Build an action list for a quick-insert template. `target` is the
+// per-button entity_id picked in the editor (may be empty / undefined,
+// in which case a domain-appropriate REPLACE_ME placeholder is used).
+export function actionTemplate(name, target) {
+  const t = target || "";
+  const d = domainOf(t);
+
+  switch (name) {
+    case "brighten":
+      return [
+        {
+          service: "light.turn_on",
+          target: { entity_id: t || PLACEHOLDER.light },
+          data: { brightness_step_pct: 10, transition: 0.3 },
+        },
+      ];
+    case "dim":
+      return [
+        {
+          service: "light.turn_on",
+          target: { entity_id: t || PLACEHOLDER.light },
+          data: { brightness_step_pct: -10, transition: 0.3 },
+        },
+      ];
+    case "toggle":
+      // light/switch/fan/automation have their own toggle service;
+      // scene only supports turn_on; everything else falls back to
+      // homeassistant.toggle which works on any toggleable entity.
+      if (d === "light" || d === "switch" || d === "fan" || d === "automation") {
+        return [
+          {
+            service: `${d}.toggle`,
+            target: { entity_id: t },
+            ...(d === "light" ? { data: { transition: 0.3 } } : {}),
+          },
+        ];
+      }
+      if (d === "scene") {
+        return [{ service: "scene.turn_on", target: { entity_id: t } }];
+      }
+      if (!d) {
+        return [
+          {
+            service: "light.toggle",
+            target: { entity_id: PLACEHOLDER.light },
+            data: { transition: 0.3 },
+          },
+        ];
+      }
+      return [{ service: "homeassistant.toggle", target: { entity_id: t } }];
+    case "light_scene":
+      return [
+        {
+          service: "light.turn_on",
+          target: { entity_id: t || PLACEHOLDER.light },
+          data: {
+            brightness_pct: 80,
+            rgb_color: [255, 217, 168],
+            transition: 0.5,
+          },
+        },
+      ];
+    case "service":
+      return [
+        {
+          service: d ? `${d}.turn_on` : "light.turn_on",
+          target: { entity_id: t || PLACEHOLDER.light },
+        },
+      ];
+    case "scene":
+      return [
+        {
+          service: "scene.turn_on",
+          target: {
+            entity_id: d === "scene" ? t : PLACEHOLDER.scene,
+          },
+        },
+      ];
+    case "script":
+      return [
+        {
+          service: "script.turn_on",
+          target: {
+            entity_id: d === "script" ? t : PLACEHOLDER.script,
+          },
+        },
+      ];
+    case "automation":
+      return [
+        {
+          service: "automation.trigger",
+          target: {
+            entity_id: d === "automation" ? t : PLACEHOLDER.automation,
+          },
+        },
+      ];
+    case "delay":
+      return [{ delay: { seconds: 1 } }];
+    default:
+      return null;
+  }
+}
 
 // State-id → recommended template, highlighted in the editor.
 export const STATE_DEFAULT_TEMPLATE = {

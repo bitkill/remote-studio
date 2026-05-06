@@ -255,6 +255,35 @@ export const css = `
     color: var(--text-primary-color, #fff);
     padding: 2px 8px; border-radius: 999px;
   }
+  .target-picker {
+    display: flex; flex-direction: column; gap: 4px;
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    background: var(--secondary-background-color, #f8f8f8);
+    border: 1px solid var(--divider-color, #e0e0e0);
+    border-radius: 10px;
+  }
+  .target-picker label {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 0.85rem;
+  }
+  .target-picker label > span:first-child {
+    font-weight: 500; opacity: 0.75;
+    flex: 0 0 56px;
+  }
+  .target-picker select {
+    flex: 1; min-width: 0;
+    font: inherit; font-size: 0.85rem;
+    padding: 6px 8px;
+    border-radius: 8px;
+    border: 1px solid var(--divider-color, #e0e0e0);
+    background: var(--card-background-color, #fff);
+    color: inherit;
+  }
+  .target-picker small {
+    font-size: 0.72rem; opacity: 0.55;
+    padding-left: 66px;
+  }
   .quick-insert {
     display: flex; flex-wrap: wrap; gap: 6px;
     margin-bottom: 8px; align-items: center;

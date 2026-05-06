@@ -10,7 +10,6 @@
  * helpers.js, chips.js and constants.js.
  */
 import {
-  ACTION_TEMPLATES,
   PANEL_BASE,
   WS_CLEAR,
   WS_GET,
@@ -18,12 +17,13 @@ import {
   WS_SAVE,
   WS_SUBSCRIBE,
   WS_TEST,
+  actionTemplate,
 } from "./constants.js";
 import { cssEscape } from "./helpers.js";
 import { css } from "./styles.js";
+import { renderDevice } from "./views/device.js";
 import { renderEditor } from "./views/editor.js";
-import { renderList } from "./views/list.js";
-import { renderRemoteView } from "./views/remote.js";
+import { renderIndex } from "./views/index.js";
 
 export class RemoteStudioPanel extends HTMLElement {
   constructor() {
@@ -32,7 +32,7 @@ export class RemoteStudioPanel extends HTMLElement {
 
     this._hass = null;
     this._route = null;
-    this._view = "list"; // 'list' | 'remote'
+    this._view = "index"; // 'index' | 'device'
     this._listLoaded = false;
     this._remotes = [];
     this._candidates = [];
@@ -45,6 +45,7 @@ export class RemoteStudioPanel extends HTMLElement {
     this._editorText = "";
     this._editorError = null;
     this._editorDirty = false;
+    this._currentTarget = null;
     this._toast = null;
     this._error = null;
 
@@ -173,6 +174,7 @@ export class RemoteStudioPanel extends HTMLElement {
         this._selectedButtonId = result.definition.buttons[0].id;
         this._selectedStateId =
           result.definition.buttons[0].states?.[0]?.id ?? null;
+        this._currentTarget = this._readTarget(this._selectedButtonId);
         this._loadEditorFromMapping();
       }
     } catch (err) {
@@ -185,13 +187,13 @@ export class RemoteStudioPanel extends HTMLElement {
   // ============================================================ navigation
   // Click handlers call this; it just updates the URL. The route setter
   // takes over and triggers `_loadRemote`.
-  _openRemote(deviceId, definitionId) {
-    let path = `/${encodeURIComponent(deviceId)}`;
+  _openDevice(deviceId, definitionId) {
+    let path = `/device/${encodeURIComponent(deviceId)}`;
     if (definitionId) path += `:${encodeURIComponent(definitionId)}`;
     this._navigate(path);
   }
 
-  _backToList() {
+  _backToIndex() {
     this._navigate("");
   }
 
@@ -210,9 +212,11 @@ export class RemoteStudioPanel extends HTMLElement {
 
   _syncFromRoute() {
     const rawPath = (this._route?.path || "").replace(/^\//, "");
+
+    // Empty path — index view.
     if (!rawPath) {
-      if (this._view !== "list") {
-        this._view = "list";
+      if (this._view !== "index") {
+        this._view = "index";
         this._currentRemote = null;
         this._selectedButtonId = null;
         this._selectedStateId = null;
@@ -221,20 +225,29 @@ export class RemoteStudioPanel extends HTMLElement {
       this._render();
       return;
     }
-    // Path encodes the device id and (optionally) a layout override:
-    //   <device_id>            — auto-matched layout
-    //   <device_id>:<def_id>   — manual layout pairing
-    const [encodedDevice, encodedDef] = rawPath.split(":", 2);
-    const deviceId = decodeURIComponent(encodedDevice);
-    const definitionId = encodedDef ? decodeURIComponent(encodedDef) : undefined;
 
-    const sameDevice = this._currentRemote?.device?.id === deviceId;
-    const sameDefinition =
-      !definitionId ||
-      this._currentRemote?.definition?.id === definitionId;
-    if (this._view === "remote" && sameDevice && sameDefinition) return;
-    this._view = "remote";
-    this._loadRemote(deviceId, definitionId);
+    // /device/<device_id>[:<definition_id>]
+    if (rawPath.startsWith("device/")) {
+      const remainder = rawPath.slice("device/".length);
+      const [encodedDevice, encodedDef] = remainder.split(":", 2);
+      const deviceId = decodeURIComponent(encodedDevice);
+      const definitionId = encodedDef ? decodeURIComponent(encodedDef) : undefined;
+
+      const sameDevice = this._currentRemote?.device?.id === deviceId;
+      const sameDefinition =
+        !definitionId ||
+        this._currentRemote?.definition?.id === definitionId;
+      if (this._view === "device" && sameDevice && sameDefinition) return;
+      this._view = "device";
+      this._loadRemote(deviceId, definitionId);
+      return;
+    }
+
+    // Unknown path — fall back to index, replacing the URL so back-button
+    // history doesn't get stuck on a 404.
+    this._view = "index";
+    history.replaceState(null, "", `/${PANEL_BASE}`);
+    this._render();
   }
 
   // ============================================================ live events
@@ -253,14 +266,14 @@ export class RemoteStudioPanel extends HTMLElement {
   _onRemoteEvent(event) {
     if (!event || !event.device_id) return;
 
-    // List view: highlight the matching card.
-    if (this._view === "list") {
+    // Index view: highlight the matching card.
+    if (this._view === "index") {
       this._pulseCard(event.device_id);
       return;
     }
 
     if (
-      this._view !== "remote" ||
+      this._view !== "device" ||
       this._currentRemote?.device?.id !== event.device_id ||
       !event.button_id
     ) {
@@ -338,25 +351,25 @@ export class RemoteStudioPanel extends HTMLElement {
     if (!root) return;
     root.innerHTML = `
       <style>${css}</style>
-      ${this._view === "list" ? this._renderList() : this._renderRemoteView()}
+      ${this._view === "index" ? this._renderIndex() : this._renderDevice()}
     `;
-    if (this._view === "list") {
-      this._wireList();
+    if (this._view === "index") {
+      this._wireIndex();
     } else {
       const back = root.querySelector(".back");
-      if (back) back.addEventListener("click", () => this._backToList());
+      if (back) back.addEventListener("click", () => this._backToIndex());
       this._wireSvg();
       this._wireButtonList();
     }
   }
 
-  _wireList() {
+  _wireIndex() {
     const root = this.shadowRoot;
     root
       .querySelectorAll("[data-device-id]")
       .forEach((el) =>
         el.addEventListener("click", () =>
-          this._openRemote(el.dataset.deviceId),
+          this._openDevice(el.dataset.deviceId),
         ),
       );
     root
@@ -365,7 +378,7 @@ export class RemoteStudioPanel extends HTMLElement {
         select.addEventListener("change", (e) => {
           const definitionId = e.target.value;
           if (!definitionId) return;
-          this._openRemote(e.target.dataset.pairDevice, definitionId);
+          this._openDevice(e.target.dataset.pairDevice, definitionId);
         }),
       );
 
@@ -475,6 +488,12 @@ export class RemoteStudioPanel extends HTMLElement {
         this._onEditorInput(e.target.value),
       );
     }
+    const target = root.querySelector("[data-target]");
+    if (target) {
+      target.addEventListener("change", (e) =>
+        this._onTargetChange(e.target.value),
+      );
+    }
     root.querySelectorAll("[data-template]").forEach((btn) => {
       btn.addEventListener("click", () =>
         this._insertTemplate(btn.dataset.template),
@@ -497,7 +516,46 @@ export class RemoteStudioPanel extends HTMLElement {
       (b) => b.id === buttonId,
     );
     this._selectedStateId = btn?.states?.[0]?.id ?? null;
+    this._currentTarget = this._readTarget(buttonId);
     this._loadEditorFromMapping();
+    this._render();
+  }
+
+  // Per-button target entity (the light/switch/scene the user wants this
+  // button to drive). Persisted to localStorage so it survives reloads
+  // without polluting the action storage on the HA side. Each device +
+  // button gets its own slot, so dot1 / dot2 / dot3 on a BILRESA can
+  // target different lights.
+  _targetKey(buttonId = this._selectedButtonId) {
+    const deviceId = this._currentRemote?.device?.id;
+    if (!deviceId || !buttonId) return null;
+    return `remote_studio:target:${deviceId}:${buttonId}`;
+  }
+
+  _readTarget(buttonId) {
+    const key = this._targetKey(buttonId);
+    if (!key) return null;
+    try {
+      return localStorage.getItem(key) || null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  _writeTarget(entityId) {
+    const key = this._targetKey();
+    if (!key) return;
+    try {
+      if (entityId) localStorage.setItem(key, entityId);
+      else localStorage.removeItem(key);
+    } catch (_) {
+      /* private mode or quota — drop silently */
+    }
+  }
+
+  _onTargetChange(entityId) {
+    this._currentTarget = entityId || null;
+    this._writeTarget(this._currentTarget);
     this._render();
   }
 
@@ -639,7 +697,7 @@ export class RemoteStudioPanel extends HTMLElement {
   }
 
   _insertTemplate(name) {
-    const tpl = ACTION_TEMPLATES[name];
+    const tpl = actionTemplate(name, this._currentTarget);
     if (!tpl) return;
     let current;
     try {
@@ -670,9 +728,9 @@ export class RemoteStudioPanel extends HTMLElement {
   }
 }
 
-// Render functions live in views.js but are called as methods. Attaching
+// Render functions live in views/* but are called as methods. Attaching
 // them on the prototype keeps `this` semantics intact while letting the
-// view code live in its own file.
-RemoteStudioPanel.prototype._renderList = renderList;
-RemoteStudioPanel.prototype._renderRemoteView = renderRemoteView;
+// view code live in its own files.
+RemoteStudioPanel.prototype._renderIndex = renderIndex;
+RemoteStudioPanel.prototype._renderDevice = renderDevice;
 RemoteStudioPanel.prototype._renderEditor = renderEditor;

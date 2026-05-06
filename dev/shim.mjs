@@ -83,9 +83,16 @@ function syncRoute() {
 window.addEventListener("location-changed", syncRoute);
 window.addEventListener("popstate", syncRoute);
 
-// Live HA state — keep the panel's `hass.states` rough-and-ready in case
-// something downstream wants it. We don't currently read it but it's
-// trivial to keep in sync.
+// Seed hass.states with the current snapshot, then keep it fresh from
+// state_changed events. The action editor's target picker reads this.
+const initial = await connection.sendMessagePromise({ type: "get_states" });
+for (const st of initial) {
+  hass.states[st.entity_id] = st;
+}
+// Re-render so any view that already mounted picks up the populated states.
+const panelEl = document.querySelector("remote-studio-panel");
+if (panelEl?._render) panelEl._render();
+
 connection.subscribeEvents((evt) => {
   if (evt.event_type !== "state_changed") return;
   const { entity_id, new_state } = evt.data;
