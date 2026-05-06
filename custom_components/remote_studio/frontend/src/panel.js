@@ -24,6 +24,7 @@ import { css } from "./styles.js";
 import { renderDevice } from "./views/device.js";
 import { renderEditor } from "./views/editor.js";
 import { renderIndex } from "./views/index.js";
+import { renderEventListItems } from "./views/log.js";
 
 export class RemoteStudioPanel extends HTMLElement {
   constructor() {
@@ -53,6 +54,10 @@ export class RemoteStudioPanel extends HTMLElement {
     this._pulseTimers = new Map();
 
     this._filterText = "";
+
+    // Recent matched events from the runtime — shown in the logs section
+    // on each view. Most-recent-first; capped at MAX_EVENT_LOG entries.
+    this._eventLog = [];
   }
 
   // ============================================================ lifecycle
@@ -265,6 +270,18 @@ export class RemoteStudioPanel extends HTMLElement {
 
   _onRemoteEvent(event) {
     if (!event || !event.device_id) return;
+
+    // Append to the log first so both views can refresh from it.
+    if (event.button_id && event.state_id) {
+      this._eventLog.unshift({
+        device_id: event.device_id,
+        button_id: event.button_id,
+        state_id: event.state_id,
+        ts: Date.now(),
+      });
+      if (this._eventLog.length > 100) this._eventLog.length = 100;
+      this._refreshEventLog();
+    }
 
     // Index view: highlight the matching card.
     if (this._view === "index") {
@@ -716,6 +733,43 @@ export class RemoteStudioPanel extends HTMLElement {
     this._editorDirty = true;
     this._editorError = null;
     // No re-render — keeping the cursor stable matters more than refreshing.
+  }
+
+  // ============================================================ event log
+  // Update the .event-list containers in-place rather than re-rendering
+  // the whole panel — avoids disrupting the editor cursor or scroll
+  // position when events are arriving rapidly.
+  _refreshEventLog() {
+    const root = this.shadowRoot;
+    if (!root) return;
+    const lookup = this._buildEventLookup();
+    root.querySelectorAll(".event-list").forEach((list) => {
+      const filter = list.dataset.deviceFilter || "";
+      list.innerHTML = renderEventListItems(this._eventLog, filter, lookup);
+    });
+    root.querySelectorAll("[data-event-count]").forEach((el) => {
+      el.textContent = String(this._eventLog.length);
+    });
+  }
+
+  _buildEventLookup() {
+    const definitionsById = new Map(
+      (this._definitions || []).map((d) => [d.id, d]),
+    );
+    const lookup = new Map();
+    for (const r of this._remotes || []) {
+      lookup.set(r.device_id, {
+        name: r.device_name,
+        definition: definitionsById.get(r.definition_id) || null,
+      });
+    }
+    if (this._currentRemote?.device?.id) {
+      lookup.set(this._currentRemote.device.id, {
+        name: this._currentRemote.device.name,
+        definition: this._currentRemote.definition,
+      });
+    }
+    return lookup;
   }
 
   _showToast(message) {

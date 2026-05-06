@@ -461,6 +461,109 @@ export const css = `
     fill: currentColor;
   }
 
+  /* ============================ Event log ============================= */
+  .event-log-section {
+    margin-top: 24px;
+  }
+  .event-log {
+    background: var(--card-background-color, #fff);
+    border: 1px solid var(--divider-color, #e0e0e0);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .event-log > summary {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px;
+    cursor: pointer;
+    font-weight: 500;
+    list-style: none;
+    user-select: none;
+  }
+  .event-log > summary::-webkit-details-marker { display: none; }
+  .event-log > summary::before {
+    content: "▸";
+    display: inline-block;
+    width: 1em;
+    transition: transform 120ms ease-out;
+    opacity: 0.55;
+  }
+  .event-log[open] > summary::before { transform: rotate(90deg); }
+  .event-count {
+    margin-left: auto;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: var(--secondary-background-color, #f4f4f4);
+    border: 1px solid var(--divider-color, #e0e0e0);
+    font-size: 0.75rem;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    color: var(--secondary-text-color);
+  }
+  .device-log {
+    background: var(--card-background-color, #fff);
+    border: 1px solid var(--divider-color, #e0e0e0);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .device-log h2 {
+    margin: 0 0 8px;
+    font-size: 0.95rem;
+  }
+  .event-list {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 4px;
+    max-height: 320px;
+    overflow-y: auto;
+    font-size: 0.85rem;
+  }
+  .event-log[open] .event-list { padding: 0 16px 8px; }
+  .event-row {
+    display: grid;
+    grid-template-columns: 80px minmax(0, 1.2fr) minmax(0, 2fr);
+    gap: 10px;
+    align-items: baseline;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--divider-color, #f0f0f0);
+  }
+  .event-row:last-child { border-bottom: none; }
+  .device-log .event-row,
+  .event-log .event-row {
+    /* allow wider event-action column when no device column */
+  }
+  .device-log .event-row {
+    grid-template-columns: 80px 1fr;
+  }
+  .event-row time {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 0.78rem;
+    color: var(--secondary-text-color);
+    font-variant-numeric: tabular-nums;
+  }
+  .event-device {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  .event-action {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--primary-text-color);
+  }
+  .event-action .sep {
+    margin: 0 6px;
+    opacity: 0.4;
+  }
+  .event-empty {
+    list-style: none;
+    padding: 14px 16px;
+    text-align: center;
+    opacity: 0.55;
+    font-size: 0.85rem;
+  }
+
   /* ============================ Candidate list ======================= */
   .candidate-list { display: flex; flex-direction: column; gap: 8px; }
   .candidate {

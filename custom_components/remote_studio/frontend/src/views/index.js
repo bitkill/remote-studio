@@ -6,6 +6,7 @@
  */
 import { batteryChipHtml, integrationChipHtml } from "../chips.js";
 import { escapeAttr, escapeHtml, mdiIcon } from "../helpers.js";
+import { renderEventLogIndex } from "./log.js";
 
 export function renderIndex() {
   const definitionsById = new Map(this._definitions.map((d) => [d.id, d]));
@@ -67,6 +68,7 @@ export function renderIndex() {
         </section>`
         : ""
     }
+    ${renderEventLogIndex.call(this)}
   `;
 }
 

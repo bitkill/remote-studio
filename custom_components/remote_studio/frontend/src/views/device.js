@@ -12,6 +12,7 @@ import {
   escapeHtml,
 } from "../helpers.js";
 import { renderEditor } from "./editor.js";
+import { renderEventLogDevice } from "./log.js";
 
 export function renderDevice() {
   if (!this._currentRemote) {
@@ -62,6 +63,7 @@ export function renderDevice() {
         ${editor}
       </aside>
     </div>
+    ${renderEventLogDevice.call(this, device.id)}
   `;
 }
 
