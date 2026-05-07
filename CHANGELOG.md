@@ -1,3 +1,10 @@
+# [0.18.0](https://github.com/bitkill/remote-studio/compare/v0.17.0...v0.18.0) (2026-05-07)
+
+
+### Features
+
+* **panel:** squircle STYRBAR body + 20% default dim step ([c116315](https://github.com/bitkill/remote-studio/commit/c11631577f4e55667ec4703ddef3de2660cb205a))
+
 # [0.17.0](https://github.com/bitkill/remote-studio/compare/v0.16.1...v0.17.0) (2026-05-07)
 
 
