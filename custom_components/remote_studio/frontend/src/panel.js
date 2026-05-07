@@ -825,6 +825,24 @@ export class RemoteStudioPanel extends HTMLElement {
     this._refreshStateRows();
     this._refreshStatePanes();
     this._syncEntitySubscriptions();
+    // Mirror the change into the cached index-list entry so navigating
+    // back doesn't show stale "Controls …" text.
+    this._syncRemoteListTargets();
+  }
+
+  _syncRemoteListTargets() {
+    if (!this._currentRemote) return;
+    const groups = this._currentRemote.groups || {};
+    const targets = [];
+    for (const cfg of Object.values(groups)) {
+      const eid = pickEntityIdFromTarget(cfg?.target);
+      if (eid && !targets.includes(eid)) targets.push(eid);
+    }
+    const deviceId = this._currentRemote.device.id;
+    const idx = this._remotes.findIndex((r) => r.device_id === deviceId);
+    if (idx >= 0) {
+      this._remotes[idx] = { ...this._remotes[idx], targets };
+    }
   }
 
   // Keep one WS subscription per *picked* entity so the right-column

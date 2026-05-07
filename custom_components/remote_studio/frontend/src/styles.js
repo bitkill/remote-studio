@@ -182,6 +182,16 @@ export const css = `
     flex-shrink: 0;
     fill: currentColor;
   }
+  .card-controls {
+    font-size: 0.8rem;
+    opacity: 0.8;
+    margin-top: 4px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .card-controls.is-empty {
+    font-style: italic;
+    opacity: 0.5;
+  }
   .card-chips { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
   .card-chip {
     display: inline-flex; align-items: center; gap: 4px;

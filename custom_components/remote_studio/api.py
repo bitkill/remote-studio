@@ -195,6 +195,35 @@ def _trigger_references_device(
     return False
 
 
+def _entity_targets_for(store, device_id: str) -> list[str]:
+    """Return the entity_ids picked across all groups for a device.
+
+    Used by the index list to show what each remote is wired to. Only
+    entity-shaped targets are surfaced — area/device targets live behind
+    the picker but the list view doesn't try to summarise them yet.
+    """
+    cfg = store.device(device_id) or {}
+    out: list[str] = []
+    for group in (cfg.get("groups") or {}).values():
+        target = group.get("target") if isinstance(group, dict) else None
+        if not isinstance(target, dict):
+            continue
+        eid = target.get("entity_id")
+        if isinstance(eid, list):
+            out.extend(str(e) for e in eid if e)
+        elif eid:
+            out.append(str(eid))
+    # Preserve order, drop duplicates.
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for e in out:
+        if e in seen:
+            continue
+        seen.add(e)
+        deduped.append(e)
+    return deduped
+
+
 async def _load_svg_cached(
     hass: HomeAssistant, definition: RemoteDefinition
 ) -> str | None:
@@ -220,6 +249,7 @@ async def ws_list_remotes(
     msg: dict[str, Any],
 ) -> None:
     registry = await async_get_registry(hass)
+    store = await async_get_store(hass)
     device_reg = dr.async_get(hass)
 
     entity_reg = er.async_get(hass)
@@ -272,6 +302,7 @@ async def ws_list_remotes(
                     "integration": _device_integration(device),
                     "area": _device_area(hass, device),
                     "battery": _find_battery(hass, device.id),
+                    "targets": _entity_targets_for(store, device.id),
                 }
             )
             continue

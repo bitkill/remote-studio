@@ -10,14 +10,17 @@ import { renderEventLogIndex } from "./log.js";
 
 export function renderIndex() {
   const definitionsById = new Map(this._definitions.map((d) => [d.id, d]));
+  const hassStates = this._hass?.states || {};
 
   const filterText = (this._filterText || "").trim().toLowerCase();
-  const matches = this._remotes.filter((r) => matchesFilter(r, filterText));
+  const matches = this._remotes.filter((r) =>
+    matchesFilter(r, filterText, definitionsById, hassStates),
+  );
   const filtered = filterText.length > 0;
   const total = this._remotes.length;
 
   const remotes = matches
-    .map((r) => renderCard(r, definitionsById))
+    .map((r) => renderCard(r, definitionsById, hassStates))
     .join("");
 
   const layoutOptions = this._definitions
@@ -72,13 +75,20 @@ export function renderIndex() {
   `;
 }
 
-function matchesFilter(remote, filterText) {
+function matchesFilter(remote, filterText, definitionsById, hassStates) {
   if (!filterText) return true;
+  const layoutName = definitionsById.get(remote.definition_id)?.name;
+  const targetFriendlies = (remote.targets || []).map(
+    (eid) => hassStates?.[eid]?.attributes?.friendly_name || "",
+  );
   const haystack = [
     remote.device_name,
     remote.manufacturer,
     remote.model,
     remote.area?.name,
+    layoutName,
+    ...(remote.targets || []),
+    ...targetFriendlies,
   ]
     .filter(Boolean)
     .join(" ")
@@ -98,7 +108,7 @@ function renderSearchInput(currentValue) {
         type="search"
         class="filter-input"
         data-filter
-        placeholder="Filter by name, manufacturer, or area"
+        placeholder="Filter by name, model, area, or controlled entity"
         value="${value}"
       />
       ${clearBtn}
@@ -115,7 +125,7 @@ function renderRemotesGrid(remotesHtml, total, shownCount, filtered) {
   return `<div class="grid">${remotesHtml}</div>`;
 }
 
-function renderCard(remote, definitionsById) {
+function renderCard(remote, definitionsById, hassStates) {
   const def = definitionsById.get(remote.definition_id);
   const thumb = def?.svg ? def.svg : "";
   const layoutName = def?.name || remote.definition_id;
@@ -123,11 +133,10 @@ function renderCard(remote, definitionsById) {
     hideTypeWhenOk: true,
   });
   const integration = integrationChipHtml(remote.integration);
-  // The layout name already conveys make/model — drop the extra
-  // "manufacturer · model" line. Show the area instead, if one is set.
   const areaLine = remote.area
     ? `<div class="card-meta-soft">${mdiIcon("mapMarker")}${escapeHtml(remote.area.name)}</div>`
     : "";
+  const controlsLine = renderControlsLine(remote.targets, hassStates);
   return `
     <button class="card" data-device-id="${escapeAttr(remote.device_id)}">
       <div class="card-thumb">${thumb}</div>
@@ -135,10 +144,32 @@ function renderCard(remote, definitionsById) {
         <div class="card-title">${escapeHtml(remote.device_name) || "Unnamed remote"}</div>
         <div class="card-meta">${escapeHtml(layoutName)}</div>
         ${areaLine}
+        ${controlsLine}
         <div class="card-chips">${integration}${battery}</div>
       </div>
       <div class="card-arrow">›</div>
     </button>`;
+}
+
+// One-line summary of what the remote currently drives.
+//   No targets yet  -> muted "Not controlling any devices"
+//   1 target        -> friendly name
+//   2-3             -> "A, B, C"
+//   4+              -> "A, B + N more"
+function renderControlsLine(targets, hassStates) {
+  if (!Array.isArray(targets) || targets.length === 0) {
+    return `<div class="card-controls is-empty">Not controlling any devices</div>`;
+  }
+  const labels = targets.map(
+    (eid) => hassStates?.[eid]?.attributes?.friendly_name || eid,
+  );
+  let body;
+  if (labels.length <= 3) {
+    body = labels.join(", ");
+  } else {
+    body = `${labels.slice(0, 2).join(", ")} +${labels.length - 2} more`;
+  }
+  return `<div class="card-controls">Controls ${escapeHtml(body)}</div>`;
 }
 
 function renderCandidate(candidate, layoutOptions) {
