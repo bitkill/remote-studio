@@ -1,3 +1,10 @@
+# [0.19.0](https://github.com/bitkill/remote-studio/compare/v0.18.0...v0.19.0) (2026-05-07)
+
+
+### Features
+
+* **panel:** show controlled entities on each remote card + filter on them ([6e2e5a6](https://github.com/bitkill/remote-studio/commit/6e2e5a6b61fd66e8f468762e468e7d382f82bc98))
+
 # [0.18.0](https://github.com/bitkill/remote-studio/compare/v0.17.0...v0.18.0) (2026-05-07)
 
 
