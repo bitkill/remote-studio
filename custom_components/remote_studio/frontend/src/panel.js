@@ -38,6 +38,56 @@ function pickEntityIdFromTarget(target) {
   return Array.isArray(ids) ? ids[0] : ids;
 }
 
+// Pick the best available colour signal from a light's attributes and
+// turn it into a CSS colour. Tries every common HA attribute, in order
+// of fidelity: rgb_color → color_temp_kelvin → color_temp (mireds) →
+// hs_color. Returns {css, title} or null when nothing is usable.
+function lightColour(attrs) {
+  const rgb = attrs.rgb_color;
+  if (Array.isArray(rgb) && rgb.length === 3 && rgb.every(Number.isFinite)) {
+    return { css: `rgb(${rgb.join(",")})`, title: `rgb(${rgb.join(", ")})` };
+  }
+  const ctK = attrs.color_temp_kelvin;
+  if (Number.isFinite(ctK) && ctK > 0) {
+    return { css: kelvinToRgb(ctK), title: `${ctK} K` };
+  }
+  const ctMired = attrs.color_temp;
+  if (Number.isFinite(ctMired) && ctMired > 0) {
+    const k = Math.round(1_000_000 / ctMired);
+    return { css: kelvinToRgb(k), title: `${k} K` };
+  }
+  const hs = attrs.hs_color;
+  if (Array.isArray(hs) && hs.length === 2 && hs.every(Number.isFinite)) {
+    const [r, g, b] = hsToRgb(hs[0], hs[1] / 100);
+    return { css: `rgb(${r}, ${g}, ${b})`, title: `hs(${hs[0]}°, ${hs[1]}%)` };
+  }
+  return null;
+}
+
+// HA's hs_color is [hue 0..360, saturation 0..100]; we render it at
+// full lightness so the swatch is the colour itself, not a darkened
+// version. Returns [r, g, b] each 0..255.
+function hsToRgb(h, s) {
+  const c = s;            // chroma at L = 0.5 (full saturation circle)
+  const hp = (h % 360) / 60;
+  const x = c * (1 - Math.abs((hp % 2) - 1));
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  if (hp < 1) [r, g, b] = [c, x, 0];
+  else if (hp < 2) [r, g, b] = [x, c, 0];
+  else if (hp < 3) [r, g, b] = [0, c, x];
+  else if (hp < 4) [r, g, b] = [0, x, c];
+  else if (hp < 5) [r, g, b] = [x, 0, c];
+  else [r, g, b] = [c, 0, x];
+  const m = 1 - c;
+  return [
+    Math.round((r + m) * 255),
+    Math.round((g + m) * 255),
+    Math.round((b + m) * 255),
+  ];
+}
+
 // Approximate colour temperature (Kelvin) → RGB for the swatch shown
 // next to a light's status pill. Tanner Helland's algorithm — close
 // enough for a 16×16 visual cue.
@@ -530,24 +580,17 @@ export class RemoteStudioPanel extends HTMLElement {
     const pill = `<span class="state-pill ${stateClass}">${escapeHtmlInline(value)}</span>`;
 
     if (domain === "light") {
-      const brightness = state.attributes?.brightness;
-      const brightnessPct =
-        Number.isFinite(brightness) ? Math.round((brightness / 255) * 100) : null;
-      const rgb = state.attributes?.rgb_color;
-      const ct = state.attributes?.color_temp_kelvin;
-      let swatchStyle = "";
-      let swatchTitle = "";
-      if (isOn && Array.isArray(rgb) && rgb.length === 3) {
-        swatchStyle = `background: rgb(${rgb.join(",")})`;
-        swatchTitle = `rgb(${rgb.join(", ")})`;
-      } else if (isOn && Number.isFinite(ct)) {
-        swatchStyle = `background: ${kelvinToRgb(ct)}`;
-        swatchTitle = `${ct}K`;
-      }
-      const swatch =
-        swatchStyle
-          ? `<span class="state-swatch" style="${swatchStyle}" title="${escapeAttrInline(swatchTitle)}"></span>`
-          : "";
+      const attrs = state.attributes || {};
+      const brightness = attrs.brightness;
+      const brightnessPct = Number.isFinite(brightness)
+        ? Math.round((brightness / 255) * 100)
+        : null;
+      const colour = lightColour(attrs);
+      const swatch = colour
+        ? `<span class="state-swatch ${isOn ? "" : "is-off"}"
+              style="background: ${colour.css}"
+              title="${escapeAttrInline(colour.title)}"></span>`
+        : "";
       const brightnessRow =
         isOn && brightnessPct !== null
           ? `

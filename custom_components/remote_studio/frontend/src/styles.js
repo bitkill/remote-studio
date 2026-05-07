@@ -259,10 +259,11 @@ export const css = `
   .state-swatch {
     width: 22px; height: 22px;
     border-radius: 50%;
-    border: 1px solid rgba(0, 0, 0, 0.15);
-    box-shadow: 0 0 0 2px var(--secondary-background-color, #f8f8f8) inset;
+    border: 1px solid rgba(0, 0, 0, 0.18);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
     flex: 0 0 auto;
   }
+  .state-swatch.is-off { opacity: 0.4; }
   .state-row-bar {
     display: grid;
     grid-template-columns: auto 1fr auto;
@@ -448,8 +449,12 @@ export const css = `
   }
   .btn-row:hover { filter: brightness(0.97); }
   .btn-row.selected {
+    /* Theme-independent tint: mix the theme's primary colour with the
+       page background so we work on light AND dark themes without
+       depending on --primary-color-light, which HA doesn't define. */
     border-color: var(--primary-color, #5b8def);
-    background: var(--primary-color-light, #e3edff);
+    background: color-mix(in srgb, var(--primary-color, #5b8def) 16%, transparent);
+    color: var(--primary-text-color);
   }
   .btn-meta { opacity: 0.65; font-size: 0.85rem; }
 
@@ -474,7 +479,8 @@ export const css = `
   .state-row:hover { filter: brightness(0.97); }
   .state-row.selected {
     border-color: var(--primary-color, #5b8def);
-    background: var(--primary-color-light, #e3edff);
+    background: color-mix(in srgb, var(--primary-color, #5b8def) 16%, transparent);
+    color: var(--primary-text-color);
   }
   .state-row.is-pulsing { animation: rs-row-pulse 600ms ease-out 1; }
   @keyframes rs-row-pulse {
