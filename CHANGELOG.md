@@ -1,3 +1,10 @@
+# [0.16.0](https://github.com/bitkill/remote-studio/compare/v0.15.0...v0.16.0) (2026-05-07)
+
+
+### Features
+
+* **panel:** live entity-state pane next to the group's target picker ([0fb8601](https://github.com/bitkill/remote-studio/commit/0fb8601f06c761900766443e273c76a77aa13159))
+
 # [0.15.0](https://github.com/bitkill/remote-studio/compare/v0.14.2...v0.15.0) (2026-05-07)
 
 
