@@ -155,7 +155,7 @@ function renderGroupCard(group) {
   const stored = this._currentRemote.groups?.[group.id] || {};
   const dimStep = Number.isFinite(Number(stored.dim_step))
     ? Number(stored.dim_step)
-    : 10;
+    : 20;
   const targetSummary = describeTarget(stored.target);
   const dimRow = group.has_dim
     ? `
@@ -228,7 +228,7 @@ function renderStateRow(state, button, selectedStateId) {
     summary = "Pick a target above";
     summaryClass = "muted";
   } else {
-    summary = `Default · ${describeRole(state.role, target, groupCfg.dim_step ?? 10)}`;
+    summary = `Default · ${describeRole(state.role, target, groupCfg.dim_step ?? 20)}`;
   }
 
   return `

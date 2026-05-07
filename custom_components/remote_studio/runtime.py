@@ -64,7 +64,7 @@ def resolve_actions(
     target = group.get("target")
     if not target:
         return []
-    dim_step = int(group.get("dim_step") or 10)
+    dim_step = int(group.get("dim_step") or 20)
 
     if role == "turn_on":
         return [{"service": "homeassistant.turn_on", "target": target}]

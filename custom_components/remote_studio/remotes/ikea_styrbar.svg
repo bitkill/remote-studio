@@ -31,9 +31,19 @@
     }
   </style>
 
-  <!-- Body: rounded square paddle. -->
-  <rect x="20" y="20" width="240" height="240" rx="40" ry="40"
-        fill="#fafaf6" stroke="#7a7363" stroke-width="1.4" />
+  <!-- Body: squircle (continuous-curvature rounded square). Each side
+       is one cubic bezier — control points are pulled close to the
+       corner so the sides read flat-ish in the middle and the
+       corners blend smoothly without a visible "circle starts here"
+       inflection. Matches the soft pebble feel of the real STYRBAR. -->
+  <path
+    d="M 140 20
+       C 230 20 260 50 260 140
+       C 260 230 230 260 140 260
+       C 50 260 20 230 20 140
+       C 20 50 50 20 140 20
+       Z"
+    fill="#fafaf6" stroke="#7a7363" stroke-width="1.4" />
 
   <!-- ======== TOP: ON button (sun with rays) ======== -->
   <g id="button-on" class="rs-button">

@@ -7,7 +7,7 @@ Schema (v2):
         "groups": {
           <group_id>: {
             "target": {"entity_id": "light.living"} | null,
-            "dim_step": 10              # percentage step for dim_up/dim_down
+            "dim_step": 20              # percentage step for dim_up/dim_down
           }
         },
         "overrides": {                  # advanced escape hatch
@@ -40,7 +40,7 @@ _LOGGER = logging.getLogger(__name__)
 
 STORAGE_VERSION = 2
 STORAGE_KEY = f"{DOMAIN}.mappings"
-DEFAULT_DIM_STEP = 10
+DEFAULT_DIM_STEP = 20
 
 ActionStep = dict[str, Any]
 GroupConfig = dict[str, Any]                  # {target, dim_step}

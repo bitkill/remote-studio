@@ -19,7 +19,7 @@ export const WS_TEST = "remote_studio/test_action";
 export const WS_TRIGGER = "remote_studio/trigger_button";
 export const WS_SUBSCRIBE = "remote_studio/subscribe_events";
 
-export const DEFAULT_DIM_STEP = 10;
+export const DEFAULT_DIM_STEP = 20;
 
 const PLACEHOLDER = {
   light: "light.REPLACE_ME",
