@@ -1,3 +1,10 @@
+# [0.17.0](https://github.com/bitkill/remote-studio/compare/v0.16.1...v0.17.0) (2026-05-07)
+
+
+### Features
+
+* **panel:** live state pane with per-entity WS subscriptions ([39aead1](https://github.com/bitkill/remote-studio/commit/39aead13cfddc18956a15dfbed8eeedc72c2e591))
+
 ## [0.16.1](https://github.com/bitkill/remote-studio/compare/v0.16.0...v0.16.1) (2026-05-07)
 
 
