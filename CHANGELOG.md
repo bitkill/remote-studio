@@ -1,3 +1,10 @@
+## [0.16.1](https://github.com/bitkill/remote-studio/compare/v0.16.0...v0.16.1) (2026-05-07)
+
+
+### Bug Fixes
+
+* **panel:** readable selected-row in HA themes + always show light colour ([b0a7ab2](https://github.com/bitkill/remote-studio/commit/b0a7ab20bfb44477c2b27f9b52a6beafad5c2f1d))
+
 # [0.16.0](https://github.com/bitkill/remote-studio/compare/v0.15.0...v0.16.0) (2026-05-07)
 
 
