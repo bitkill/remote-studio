@@ -227,8 +227,74 @@ export const css = `
     border: 1px solid var(--divider-color, #e0e0e0);
     padding: 2px 8px; border-radius: 999px;
   }
-  .group-target-slot { min-height: 56px; }
-  .group-target-slot ha-target-picker { display: block; width: 100%; }
+  .group-target-slot { min-height: 44px; }
+
+  /* Custom entity picker (we don't rely on HA's lazy-loaded ha-target-picker) */
+  .entity-picker { position: relative; width: 100%; }
+  .entity-picker-control {
+    display: flex; align-items: center; gap: 4px;
+    padding: 0 4px 0 12px;
+    background: var(--secondary-background-color, #f8f8f8);
+    border: 1px solid var(--divider-color, #e0e0e0);
+    border-radius: 10px;
+    transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+  }
+  .entity-picker-control:focus-within {
+    border-color: var(--primary-color, #5b8def);
+    box-shadow: 0 0 0 2px rgba(91, 141, 239, 0.18);
+  }
+  .entity-picker-input {
+    flex: 1; min-width: 0;
+    background: transparent;
+    border: none; outline: none;
+    padding: 9px 0;
+    color: inherit;
+    font: inherit; font-size: 0.9rem;
+  }
+  .entity-picker-input::placeholder { color: var(--secondary-text-color, #888); }
+  .entity-picker-clear {
+    background: transparent; border: none; cursor: pointer;
+    color: var(--secondary-text-color, #888);
+    font-size: 1.1rem; line-height: 1;
+    padding: 6px 8px; border-radius: 6px;
+  }
+  .entity-picker-clear:hover {
+    background: var(--divider-color, #e0e0e0);
+    color: var(--primary-text-color);
+  }
+  .entity-picker-options {
+    position: absolute; left: 0; right: 0; top: calc(100% + 4px);
+    margin: 0; padding: 4px;
+    background: var(--card-background-color, #fff);
+    border: 1px solid var(--divider-color, #e0e0e0);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    list-style: none;
+    max-height: 320px; overflow-y: auto;
+    z-index: 20;
+  }
+  .entity-picker-options li {
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex; flex-direction: column; gap: 1px;
+  }
+  .entity-picker-options li:hover {
+    background: var(--secondary-background-color, #f4f4f4);
+  }
+  .entity-picker-options .entity-friendly {
+    font-size: 0.9rem; color: var(--primary-text-color);
+  }
+  .entity-picker-options .entity-id {
+    font-size: 0.74rem; color: var(--secondary-text-color, #888);
+    font-variant-numeric: tabular-nums;
+  }
+  .entity-picker-empty {
+    padding: 10px 12px;
+    color: var(--secondary-text-color, #888);
+    font-size: 0.85rem;
+    cursor: default;
+  }
   .dim-step {
     display: flex; align-items: center; gap: 8px;
     font-size: 0.85rem;

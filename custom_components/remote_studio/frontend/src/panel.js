@@ -20,6 +20,23 @@ import {
 } from "./constants.js";
 import { cssEscape } from "./helpers.js";
 import { css } from "./styles.js";
+
+// Tiny inline escapers — duplicated from helpers.js to keep the picker
+// self-contained without a new import cycle.
+function escapeHtmlInline(value) {
+  if (value === null || value === undefined) return "";
+  return String(value).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+  );
+}
+const escapeAttrInline = escapeHtmlInline;
+
+function pickEntityIdFromTarget(target) {
+  if (!target || typeof target !== "object") return null;
+  const ids = target.entity_id;
+  if (!ids) return null;
+  return Array.isArray(ids) ? ids[0] : ids;
+}
 import { renderDevice } from "./views/device.js";
 import { renderEditor } from "./views/editor.js";
 import { renderIndex } from "./views/index.js";
@@ -413,22 +430,18 @@ export class RemoteStudioPanel extends HTMLElement {
     }
   }
 
-  // ----------- group cards: ha-target-picker + dim-step input
+  // ----------- group cards: custom entity picker + dim-step input
+  // Note: HA's <ha-target-picker> is lazy-loaded by the frontend bundle and
+  // isn't registered when our panel mounts cold, so the element renders as
+  // an empty box. We ship our own searchable entity picker instead — it's
+  // always available, always behaves the same, and styled to match HA.
   _wireGroupCards() {
     const root = this.shadowRoot;
     if (!root) return;
     root.querySelectorAll(".group-target-slot").forEach((slot) => {
       const groupId = slot.dataset.group;
       const stored = this._currentRemote?.groups?.[groupId];
-      const picker = document.createElement("ha-target-picker");
-      picker.hass = this._hass;
-      picker.value = stored?.target || {};
-      picker.addEventListener("value-changed", (e) => {
-        const value = e.detail?.value;
-        const target = value && Object.keys(value).length ? value : null;
-        this._onGroupTargetChange(groupId, target);
-      });
-      slot.appendChild(picker);
+      this._buildEntityPicker(slot, groupId, stored?.target || null);
     });
     root.querySelectorAll("[data-dim-step]").forEach((input) => {
       input.addEventListener("change", (e) => {
@@ -444,11 +457,169 @@ export class RemoteStudioPanel extends HTMLElement {
   }
 
   _syncTargetPickerHass() {
+    // Re-render entity options when hass updates (e.g. a new entity was
+    // added). Cheap because we only touch the open popover.
     const root = this.shadowRoot;
     if (!root) return;
-    root.querySelectorAll("ha-target-picker").forEach((picker) => {
-      picker.hass = this._hass;
+    root.querySelectorAll(".entity-picker").forEach((picker) => {
+      const list = picker.querySelector(".entity-picker-options");
+      if (list && !list.hidden) {
+        const input = picker.querySelector("input.entity-picker-input");
+        this._renderPickerOptions(list, input?.value || "");
+      }
     });
+  }
+
+  // Build a self-contained entity picker into `slot`. Saves on selection
+  // by calling _onGroupTargetChange. Closes on outside click or Escape.
+  _buildEntityPicker(slot, groupId, currentTarget) {
+    slot.innerHTML = "";
+    const wrap = document.createElement("div");
+    wrap.className = "entity-picker";
+
+    const control = document.createElement("div");
+    control.className = "entity-picker-control";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "entity-picker-input";
+    input.placeholder = "Search entities…";
+    input.autocomplete = "off";
+    const clear = document.createElement("button");
+    clear.type = "button";
+    clear.className = "entity-picker-clear";
+    clear.setAttribute("aria-label", "Clear");
+    clear.textContent = "×";
+    control.appendChild(input);
+    control.appendChild(clear);
+
+    const options = document.createElement("ul");
+    options.className = "entity-picker-options";
+    options.hidden = true;
+
+    wrap.appendChild(control);
+    wrap.appendChild(options);
+    slot.appendChild(wrap);
+
+    // Display the currently saved target as the input's display value.
+    const currentEntity = pickEntityIdFromTarget(currentTarget);
+    if (currentEntity) {
+      input.value = this._friendlyForEntity(currentEntity) || currentEntity;
+      input.dataset.entityId = currentEntity;
+    }
+
+    const openPopover = () => {
+      this._renderPickerOptions(options, "");
+      options.hidden = false;
+    };
+    const closePopover = () => {
+      options.hidden = true;
+    };
+
+    input.addEventListener("focus", () => {
+      // On focus, clear the displayed friendly name so the user can search
+      // freely. We restore it if they close without picking something.
+      input.dataset.previousValue = input.value;
+      input.value = "";
+      openPopover();
+    });
+    input.addEventListener("input", () => {
+      this._renderPickerOptions(options, input.value);
+      options.hidden = false;
+    });
+    input.addEventListener("blur", (e) => {
+      // Defer so a click on an option fires before we close.
+      setTimeout(() => {
+        if (!input.dataset.entityId) {
+          input.value = "";
+        } else if (!input.value) {
+          input.value =
+            this._friendlyForEntity(input.dataset.entityId) ||
+            input.dataset.entityId;
+        }
+        closePopover();
+      }, 120);
+    });
+
+    options.addEventListener("mousedown", (e) => {
+      // Keep focus on input so blur/close ordering is sane.
+      const li = e.target.closest("li[data-entity-id]");
+      if (!li) return;
+      e.preventDefault();
+      const entityId = li.dataset.entityId;
+      input.dataset.entityId = entityId;
+      input.value = this._friendlyForEntity(entityId) || entityId;
+      closePopover();
+      this._onGroupTargetChange(
+        groupId,
+        entityId ? { entity_id: entityId } : null,
+      );
+    });
+
+    clear.addEventListener("click", (e) => {
+      e.preventDefault();
+      input.value = "";
+      delete input.dataset.entityId;
+      closePopover();
+      this._onGroupTargetChange(groupId, null);
+    });
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        input.blur();
+      }
+    });
+  }
+
+  _renderPickerOptions(listEl, query) {
+    const states = this._hass?.states || {};
+    const q = (query || "").trim().toLowerCase();
+    const TARGET_DOMAINS = new Set([
+      "light",
+      "switch",
+      "fan",
+      "scene",
+      "script",
+      "automation",
+      "cover",
+      "media_player",
+      "lock",
+      "input_boolean",
+      "humidifier",
+      "climate",
+      "vacuum",
+    ]);
+    const matches = [];
+    for (const [id, st] of Object.entries(states)) {
+      const dot = id.indexOf(".");
+      if (dot < 0) continue;
+      const domain = id.slice(0, dot);
+      if (!TARGET_DOMAINS.has(domain)) continue;
+      const friendly = st.attributes?.friendly_name || id;
+      if (q && !id.toLowerCase().includes(q) && !friendly.toLowerCase().includes(q)) {
+        continue;
+      }
+      matches.push({ id, friendly, domain });
+    }
+    matches.sort((a, b) => a.friendly.localeCompare(b.friendly));
+    const top = matches.slice(0, 80);
+
+    if (!top.length) {
+      listEl.innerHTML = `<li class="entity-picker-empty">No matching entities</li>`;
+      return;
+    }
+    listEl.innerHTML = top
+      .map(
+        (m) => `
+          <li data-entity-id="${escapeAttrInline(m.id)}">
+            <span class="entity-friendly">${escapeHtmlInline(m.friendly)}</span>
+            <span class="entity-id">${escapeHtmlInline(m.id)}</span>
+          </li>`,
+      )
+      .join("");
+  }
+
+  _friendlyForEntity(entityId) {
+    return this._hass?.states?.[entityId]?.attributes?.friendly_name || null;
   }
 
   _onGroupTargetChange(groupId, target) {
