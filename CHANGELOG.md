@@ -1,3 +1,10 @@
+# [0.15.0](https://github.com/bitkill/remote-studio/compare/v0.14.2...v0.15.0) (2026-05-07)
+
+
+### Features
+
+* **panel:** power-button glyphs on Hue Dimmer v1 ([1ada69f](https://github.com/bitkill/remote-studio/commit/1ada69fc08f4fd9ef3fc518b79fa3a8c5cad98cb))
+
 ## [0.14.2](https://github.com/bitkill/remote-studio/compare/v0.14.1...v0.14.2) (2026-05-07)
 
 
