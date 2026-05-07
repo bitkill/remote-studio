@@ -1,3 +1,10 @@
+## [0.14.2](https://github.com/bitkill/remote-studio/compare/v0.14.1...v0.14.2) (2026-05-07)
+
+
+### Bug Fixes
+
+* **panel:** ship our own searchable entity picker instead of ha-target-picker ([168cd1b](https://github.com/bitkill/remote-studio/commit/168cd1b5991b68d24e0349df8eea0a458d4abf0f))
+
 ## [0.14.1](https://github.com/bitkill/remote-studio/compare/v0.14.0...v0.14.1) (2026-05-06)
 
 
