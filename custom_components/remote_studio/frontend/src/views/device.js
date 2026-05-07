@@ -41,21 +41,6 @@ export function renderDevice() {
     .map((g) => renderGroupCard.call(this, g))
     .join("");
 
-  const buttonItems = definition.buttons
-    .map((b) => renderButtonRow(b, selectedButton))
-    .join("");
-
-  const stateRows = (selectedButton?.states || [])
-    .map((s) =>
-      renderStateRow.call(this, s, selectedButton, this._selectedStateId),
-    )
-    .join("");
-
-  const editor =
-    selectedButton && this._selectedStateId && this._advancedOpen
-      ? renderEditor.call(this, selectedButton)
-      : "";
-
   return `
     ${renderHeader.call(this, device, definition)}
     ${this._error ? `<div class="error">${escapeHtml(this._error)}</div>` : ""}
@@ -64,20 +49,41 @@ export function renderDevice() {
     <section class="groups-section">${groupCards}</section>
     <div class="remote-layout">
       <div class="remote-stage">${svg || '<div class="empty">No SVG layout for this remote.</div>'}</div>
-      <aside class="remote-side">
-        <h2>Buttons</h2>
-        <ul class="btn-list">${buttonItems}</ul>
-        ${
-          selectedButton
-            ? `
-          <h2>${escapeHtml(selectedButton.label || selectedButton.id)} states</h2>
-          <div class="state-list">${stateRows}</div>`
-            : ""
-        }
-        ${editor}
-      </aside>
+      <aside class="remote-side">${renderRemoteSideContent.call(this, definition, selectedButton)}</aside>
     </div>
     ${renderEventLogDevice.call(this, device.id)}
+  `;
+}
+
+// Markup for the side-panel: button list + state list + (optional) editor.
+// Extracted so panel.js can swap it in surgically when a remote event
+// flips the selected button — full _render() during a press would reset
+// the live state pane to a stale cached value (race vs. the
+// state-trigger subscription).
+export function renderRemoteSideContent(definition, selectedButton) {
+  const buttonItems = definition.buttons
+    .map((b) => renderButtonRow(b, selectedButton))
+    .join("");
+  const stateRows = (selectedButton?.states || [])
+    .map((s) =>
+      renderStateRow.call(this, s, selectedButton, this._selectedStateId),
+    )
+    .join("");
+  const editor =
+    selectedButton && this._selectedStateId && this._advancedOpen
+      ? renderEditor.call(this, selectedButton)
+      : "";
+  return `
+    <h2>Buttons</h2>
+    <ul class="btn-list">${buttonItems}</ul>
+    ${
+      selectedButton
+        ? `
+      <h2>${escapeHtml(selectedButton.label || selectedButton.id)} states</h2>
+      <div class="state-list">${stateRows}</div>`
+        : ""
+    }
+    ${editor}
   `;
 }
 

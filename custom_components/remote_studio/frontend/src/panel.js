@@ -108,7 +108,7 @@ function kelvinToRgb(kelvin) {
   const clamp = (v) => Math.max(0, Math.min(255, Math.round(v)));
   return `rgb(${clamp(r)}, ${clamp(g)}, ${clamp(b)})`;
 }
-import { renderDevice } from "./views/device.js";
+import { renderDevice, renderRemoteSideContent } from "./views/device.js";
 import { renderEditor } from "./views/editor.js";
 import { renderIndex } from "./views/index.js";
 import { renderEventListItems } from "./views/log.js";
@@ -140,6 +140,12 @@ export class RemoteStudioPanel extends HTMLElement {
     this._eventUnsub = null;
     this._pulseTimers = new Map();
     this._groupSaveTimers = new Map();
+
+    // Per-entity state-change subscriptions and a local cache of the
+    // last state we saw. The cache lets us render with fresh data even
+    // when HA hasn't pushed a new `hass` property to the panel yet.
+    this._entitySubs = new Map(); // entityId -> unsubFn
+    this._entityStates = new Map(); // entityId -> ha state obj
 
     this._filterText = "";
     this._eventLog = [];
@@ -179,6 +185,11 @@ export class RemoteStudioPanel extends HTMLElement {
     this._pulseTimers.clear();
     for (const t of this._groupSaveTimers.values()) clearTimeout(t);
     this._groupSaveTimers.clear();
+    for (const unsub of this._entitySubs.values()) {
+      try { unsub(); } catch (_) { /* noop */ }
+    }
+    this._entitySubs.clear();
+    this._entityStates.clear();
   }
 
   // ============================================================ HA props
@@ -265,6 +276,9 @@ export class RemoteStudioPanel extends HTMLElement {
           result.definition.buttons[0].states?.[0]?.id ?? null;
         this._loadEditorFromOverride();
       }
+      // Open per-entity subscriptions for whatever targets this remote
+      // already had stored. Awaited so failures surface in catch below.
+      this._syncEntitySubscriptions();
     } catch (err) {
       this._error =
         (err && (err.message || err.code)) || "Failed to load remote.";
@@ -306,6 +320,8 @@ export class RemoteStudioPanel extends HTMLElement {
         this._selectedStateId = null;
         this._advancedOpen = false;
         this._error = null;
+        // Tear down per-entity subscriptions when leaving the device view.
+        this._syncEntitySubscriptions();
       }
       this._render();
       return;
@@ -368,11 +384,39 @@ export class RemoteStudioPanel extends HTMLElement {
     this._pulseButton(event.button_id);
     if (event.state_id) {
       if (this._selectedButtonId !== event.button_id) {
-        this._selectedButtonId = event.button_id;
-        this._render();
+        // Surgical — full _render() would rebuild the right-column
+        // state pane from the cached entity state, which is still the
+        // pre-press value at the moment the remote event arrives.
+        // The live state-trigger subscription updates the pane a few
+        // ms later; we let it own that side of the UI.
+        this._applyButtonSelection(event.button_id);
       }
       this._pulseStateRow(event.state_id);
       if (event.state_id.startsWith("rotate_")) this._pulseWheel();
+    }
+  }
+
+  // Move the "selected button" highlight to a new button without
+  // disturbing the group cards / state pane. Keeps the SVG hotspot
+  // active class in sync and rebuilds only the side panel (button
+  // list + state list + editor).
+  _applyButtonSelection(buttonId) {
+    const def = this._currentRemote?.definition;
+    const button = def?.buttons?.find((b) => b.id === buttonId);
+    if (!button) return;
+    this._selectedButtonId = buttonId;
+    this._selectedStateId = button.states?.[0]?.id ?? null;
+    this._loadEditorFromOverride();
+
+    const root = this.shadowRoot;
+    if (!root) return;
+    root.querySelectorAll('.remote-stage [id^="button-"]').forEach((el) => {
+      el.classList.toggle("is-active", el.id === `button-${buttonId}`);
+    });
+    const aside = root.querySelector(".remote-side");
+    if (aside) {
+      aside.innerHTML = renderRemoteSideContent.call(this, def, button);
+      this._wireButtonList();
     }
   }
 
@@ -565,7 +609,11 @@ export class RemoteStudioPanel extends HTMLElement {
       pane.innerHTML = `<div class="state-empty">No entity picked</div>`;
       return;
     }
-    const state = this._hass?.states?.[entityId];
+    // Prefer our live cache (kept fresh via subscribe_trigger) over
+    // the panel's hass snapshot, which HA only refreshes on coarse
+    // events.
+    const state =
+      this._entityStates.get(entityId) || this._hass?.states?.[entityId];
     if (!state) {
       pane.innerHTML = `<div class="state-empty">Entity not found</div>`;
       return;
@@ -776,6 +824,68 @@ export class RemoteStudioPanel extends HTMLElement {
     // for this group, without losing focus on the picker.
     this._refreshStateRows();
     this._refreshStatePanes();
+    this._syncEntitySubscriptions();
+  }
+
+  // Keep one WS subscription per *picked* entity so the right-column
+  // state pane stays live without watching every state change in the
+  // system. Diff-based: subscribes to new entities, drops ones no
+  // longer referenced by any group.
+  async _syncEntitySubscriptions() {
+    if (!this._hass?.connection) return;
+    const desired = new Set();
+    const groups = this._currentRemote?.groups || {};
+    for (const cfg of Object.values(groups)) {
+      const eid = pickEntityIdFromTarget(cfg?.target);
+      if (eid) desired.add(eid);
+    }
+    // Drop subscriptions we no longer need.
+    for (const [eid, unsub] of this._entitySubs) {
+      if (!desired.has(eid)) {
+        try { unsub(); } catch (_) { /* noop */ }
+        this._entitySubs.delete(eid);
+        this._entityStates.delete(eid);
+      }
+    }
+    // Open subscriptions for new entities.
+    for (const eid of desired) {
+      if (this._entitySubs.has(eid)) continue;
+      // Mark the slot as in-flight so a re-entrant call doesn't double-subscribe.
+      this._entitySubs.set(eid, () => {});
+      // Seed cache from the current hass snapshot if we have one.
+      const initial = this._hass.states?.[eid];
+      if (initial) this._entityStates.set(eid, initial);
+      try {
+        const unsub = await this._hass.connection.subscribeMessage(
+          (msg) => this._onEntityStateChanged(eid, msg),
+          {
+            type: "subscribe_trigger",
+            trigger: { platform: "state", entity_id: eid },
+          },
+        );
+        this._entitySubs.set(eid, unsub);
+      } catch (err) {
+        this._entitySubs.delete(eid);
+        console.warn("Remote Studio: subscribe_trigger failed for", eid, err);
+      }
+    }
+  }
+
+  _onEntityStateChanged(entityId, msg) {
+    const newState = msg?.variables?.trigger?.to_state;
+    if (!newState) return;
+    this._entityStates.set(entityId, newState);
+    // Update only the panes targeting this entity — cheap, doesn't
+    // disturb popovers or focus elsewhere on the page.
+    const root = this.shadowRoot;
+    if (!root || !this._currentRemote) return;
+    root.querySelectorAll("[data-state-pane]").forEach((pane) => {
+      const groupId = pane.dataset.statePane;
+      const target = this._currentRemote.groups?.[groupId]?.target;
+      if (pickEntityIdFromTarget(target) === entityId) {
+        this._renderEntityStatePane(pane, entityId);
+      }
+    });
   }
 
   _onDimStepChange(groupId, dimStep) {
