@@ -167,9 +167,14 @@ function renderGroupCard(group) {
         <h3>${escapeHtml(group.label)}</h3>
         ${group.has_dim ? '<span class="group-tag">dimmable</span>' : ""}
       </div>
-      <div class="group-target-slot" data-group="${escapeAttr(group.id)}"></div>
-      ${dimRow}
-      <small class="group-summary">${escapeHtml(targetSummary)}</small>
+      <div class="group-card-body">
+        <div class="group-card-controls">
+          <div class="group-target-slot" data-group="${escapeAttr(group.id)}"></div>
+          ${dimRow}
+          <small class="group-summary">${escapeHtml(targetSummary)}</small>
+        </div>
+        <div class="group-card-state" data-state-pane="${escapeAttr(group.id)}"></div>
+      </div>
     </div>`;
 }
 

@@ -37,6 +37,27 @@ function pickEntityIdFromTarget(target) {
   if (!ids) return null;
   return Array.isArray(ids) ? ids[0] : ids;
 }
+
+// Approximate colour temperature (Kelvin) → RGB for the swatch shown
+// next to a light's status pill. Tanner Helland's algorithm — close
+// enough for a 16×16 visual cue.
+function kelvinToRgb(kelvin) {
+  const k = Math.max(1000, Math.min(40000, kelvin)) / 100;
+  let r;
+  let g;
+  let b;
+  if (k <= 66) {
+    r = 255;
+    g = 99.4708025861 * Math.log(k) - 161.1195681661;
+    b = k <= 19 ? 0 : 138.5177312231 * Math.log(k - 10) - 305.0447927307;
+  } else {
+    r = 329.698727446 * Math.pow(k - 60, -0.1332047592);
+    g = 288.1221695283 * Math.pow(k - 60, -0.0755148492);
+    b = 255;
+  }
+  const clamp = (v) => Math.max(0, Math.min(255, Math.round(v)));
+  return `rgb(${clamp(r)}, ${clamp(g)}, ${clamp(b)})`;
+}
 import { renderDevice } from "./views/device.js";
 import { renderEditor } from "./views/editor.js";
 import { renderIndex } from "./views/index.js";
@@ -443,6 +464,7 @@ export class RemoteStudioPanel extends HTMLElement {
       const stored = this._currentRemote?.groups?.[groupId];
       this._buildEntityPicker(slot, groupId, stored?.target || null);
     });
+    this._refreshStatePanes();
     root.querySelectorAll("[data-dim-step]").forEach((input) => {
       input.addEventListener("change", (e) => {
         const groupId = e.target.dataset.dimStep;
@@ -468,6 +490,88 @@ export class RemoteStudioPanel extends HTMLElement {
         this._renderPickerOptions(list, input?.value || "");
       }
     });
+    this._refreshStatePanes();
+  }
+
+  // Right-side info card next to each group's picker. Reads the picked
+  // entity's state out of hass.states and renders a domain-aware summary
+  // (status pill, brightness bar + colour swatch for lights, plain state
+  // for everything else). Called both when the picker selection changes
+  // and on every hass update so the readout stays live.
+  _refreshStatePanes() {
+    const root = this.shadowRoot;
+    if (!root || !this._currentRemote) return;
+    const groups = this._currentRemote.groups || {};
+    root.querySelectorAll("[data-state-pane]").forEach((pane) => {
+      const groupId = pane.dataset.statePane;
+      const target = groups[groupId]?.target;
+      const entityId = pickEntityIdFromTarget(target);
+      this._renderEntityStatePane(pane, entityId);
+    });
+  }
+
+  _renderEntityStatePane(pane, entityId) {
+    if (!entityId) {
+      pane.innerHTML = `<div class="state-empty">No entity picked</div>`;
+      return;
+    }
+    const state = this._hass?.states?.[entityId];
+    if (!state) {
+      pane.innerHTML = `<div class="state-empty">Entity not found</div>`;
+      return;
+    }
+    const dot = entityId.indexOf(".");
+    const domain = dot > 0 ? entityId.slice(0, dot) : "";
+    const value = state.state;
+    const friendly = state.attributes?.friendly_name || entityId;
+    const isOn = value === "on";
+
+    const stateClass = isOn ? "is-on" : value === "off" ? "is-off" : "is-other";
+    const pill = `<span class="state-pill ${stateClass}">${escapeHtmlInline(value)}</span>`;
+
+    if (domain === "light") {
+      const brightness = state.attributes?.brightness;
+      const brightnessPct =
+        Number.isFinite(brightness) ? Math.round((brightness / 255) * 100) : null;
+      const rgb = state.attributes?.rgb_color;
+      const ct = state.attributes?.color_temp_kelvin;
+      let swatchStyle = "";
+      let swatchTitle = "";
+      if (isOn && Array.isArray(rgb) && rgb.length === 3) {
+        swatchStyle = `background: rgb(${rgb.join(",")})`;
+        swatchTitle = `rgb(${rgb.join(", ")})`;
+      } else if (isOn && Number.isFinite(ct)) {
+        swatchStyle = `background: ${kelvinToRgb(ct)}`;
+        swatchTitle = `${ct}K`;
+      }
+      const swatch =
+        swatchStyle
+          ? `<span class="state-swatch" style="${swatchStyle}" title="${escapeAttrInline(swatchTitle)}"></span>`
+          : "";
+      const brightnessRow =
+        isOn && brightnessPct !== null
+          ? `
+            <div class="state-row-bar">
+              <div class="state-row-label">Brightness</div>
+              <div class="state-bar"><div class="state-bar-fill" style="width: ${brightnessPct}%"></div></div>
+              <div class="state-row-num">${brightnessPct}%</div>
+            </div>`
+          : "";
+      pane.innerHTML = `
+        <div class="state-head">
+          ${pill}
+          ${swatch}
+        </div>
+        ${brightnessRow}
+        <div class="state-friendly">${escapeHtmlInline(friendly)}</div>
+      `;
+      return;
+    }
+
+    pane.innerHTML = `
+      <div class="state-head">${pill}</div>
+      <div class="state-friendly">${escapeHtmlInline(friendly)}</div>
+    `;
   }
 
   // Build a self-contained entity picker into `slot`. Saves on selection
@@ -625,8 +729,10 @@ export class RemoteStudioPanel extends HTMLElement {
   _onGroupTargetChange(groupId, target) {
     this._mergeGroupLocal(groupId, { target });
     this._scheduleGroupSave(groupId);
-    // Refresh button-side state summaries without losing focus on the picker.
+    // Refresh button-side state summaries + the right-column state pane
+    // for this group, without losing focus on the picker.
     this._refreshStateRows();
+    this._refreshStatePanes();
   }
 
   _onDimStepChange(groupId, dimStep) {

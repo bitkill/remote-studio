@@ -203,7 +203,7 @@ export const css = `
   /* ============================ Group cards =========================== */
   .groups-section {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
     gap: 16px;
     margin-bottom: 24px;
   }
@@ -213,6 +213,79 @@ export const css = `
     border-radius: 14px;
     padding: 14px 16px;
     display: flex; flex-direction: column; gap: 10px;
+  }
+  .group-card-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  @media (max-width: 720px) {
+    .group-card-body { grid-template-columns: 1fr; }
+  }
+  .group-card-controls {
+    display: flex; flex-direction: column; gap: 10px;
+    min-width: 0;
+  }
+  .group-card-state {
+    display: flex; flex-direction: column; gap: 8px;
+    min-width: 0;
+    padding: 10px 12px;
+    background: var(--secondary-background-color, #f8f8f8);
+    border: 1px solid var(--divider-color, #e0e0e0);
+    border-radius: 10px;
+  }
+  .state-empty {
+    font-size: 0.85rem; opacity: 0.55; font-style: italic;
+  }
+  .state-head {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .state-pill {
+    font-size: 0.75rem; font-weight: 600;
+    text-transform: capitalize;
+    padding: 3px 10px; border-radius: 999px;
+    background: var(--divider-color, #e0e0e0);
+    color: var(--secondary-text-color, #666);
+  }
+  .state-pill.is-on {
+    background: rgba(91, 192, 122, 0.18);
+    color: #2c7a40;
+  }
+  .state-pill.is-off {
+    background: rgba(160, 160, 160, 0.18);
+    color: var(--secondary-text-color, #666);
+  }
+  .state-swatch {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    box-shadow: 0 0 0 2px var(--secondary-background-color, #f8f8f8) inset;
+    flex: 0 0 auto;
+  }
+  .state-row-bar {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.78rem;
+  }
+  .state-row-label { opacity: 0.7; }
+  .state-row-num { font-variant-numeric: tabular-nums; opacity: 0.85; }
+  .state-bar {
+    height: 6px; border-radius: 999px;
+    background: var(--divider-color, #e0e0e0);
+    overflow: hidden;
+  }
+  .state-bar-fill {
+    height: 100%;
+    background: var(--primary-color, #5b8def);
+    border-radius: inherit;
+    transition: width 200ms ease-out;
+  }
+  .state-friendly {
+    font-size: 0.78rem; opacity: 0.65;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .group-card-head {
     display: flex; align-items: center; gap: 8px;
