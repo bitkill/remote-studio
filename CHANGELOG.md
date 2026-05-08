@@ -1,3 +1,10 @@
+# [0.20.0](https://github.com/bitkill/remote-studio/compare/v0.19.0...v0.20.0) (2026-05-08)
+
+
+### Features
+
+* **panel:** support Yeelight YLKG07YL via xiaomi_ble integration ([8f87863](https://github.com/bitkill/remote-studio/commit/8f87863307a6934d81f7324a9548fbc970c1f613))
+
 # [0.19.0](https://github.com/bitkill/remote-studio/compare/v0.18.0...v0.19.0) (2026-05-07)
 
 
