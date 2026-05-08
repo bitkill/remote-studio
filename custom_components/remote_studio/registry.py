@@ -50,6 +50,16 @@ _MATTER_SOURCE = vol.Schema(
         vol.Optional("attributes"): dict,
     }
 )
+# Xiaomi BLE devices (xiaomi_ble integration) expose one or more `event`
+# entities whose state.attributes['event_type'] flips on each gesture.
+# We only need the event_type — Xiaomi exposes a single event entity per
+# device for the current generation we support, so no endpoint required.
+_XIAOMI_BLE_SOURCE = vol.Schema(
+    {
+        vol.Required("event"): str,
+        vol.Optional("attributes"): dict,
+    }
+)
 
 _SOURCES = vol.All(
     vol.Schema(
@@ -57,6 +67,7 @@ _SOURCES = vol.All(
             vol.Optional("zha"): _ZHA_SOURCE,
             vol.Optional("z2m"): _Z2M_SOURCE,
             vol.Optional("matter"): _MATTER_SOURCE,
+            vol.Optional("xiaomi_ble"): _XIAOMI_BLE_SOURCE,
         }
     ),
     vol.Length(min=1, msg="state needs at least one source mapping"),
@@ -156,10 +167,19 @@ class RemoteDefinition:
     matter_index: dict[
         tuple[int, str], list[tuple[str, str, dict[str, Any]]]
     ] = field(default_factory=dict)
+    # Xiaomi BLE index keyed by event_type -> list of
+    # (button_id, state_id, attribute_filter).
+    xiaomi_ble_index: dict[
+        str, list[tuple[str, str, dict[str, Any]]]
+    ] = field(default_factory=dict)
 
     @property
     def has_matter(self) -> bool:
         return bool(self.matter_index)
+
+    @property
+    def has_xiaomi_ble(self) -> bool:
+        return bool(self.xiaomi_ble_index)
 
     def groups(self) -> list[dict[str, Any]]:
         """Return a list of groups in declaration order.
@@ -253,6 +273,20 @@ class RemoteDefinition:
                 return button_id, state_id
         return None
 
+    def match_xiaomi_ble(
+        self,
+        event_type: str,
+        attributes: dict[str, Any] | None = None,
+    ) -> tuple[str, str] | None:
+        candidates = self.xiaomi_ble_index.get(event_type)
+        if not candidates:
+            return None
+        attrs = attributes or {}
+        for button_id, state_id, attr_filter in candidates:
+            if all(attrs.get(k) == v for k, v in attr_filter.items()):
+                return button_id, state_id
+        return None
+
 
 # -------------------------------------------------------------------- loading
 def _humanise_group(group_id: str) -> str:
@@ -336,6 +370,17 @@ def _build_definition(raw: dict[str, Any], source_path: Path) -> RemoteDefinitio
                         button.id,
                         state.id,
                         dict(matter.get("attributes") or {}),
+                    )
+                )
+            xiaomi_ble = state.sources.get("xiaomi_ble")
+            if xiaomi_ble is not None:
+                definition.xiaomi_ble_index.setdefault(
+                    xiaomi_ble["event"], []
+                ).append(
+                    (
+                        button.id,
+                        state.id,
+                        dict(xiaomi_ble.get("attributes") or {}),
                     )
                 )
 

@@ -102,6 +102,8 @@ class EventRuntime:
         self._z2m_name_cache: dict[str, str] = {}
         # entity_id -> (device_id, endpoint_index)
         self._matter_entity_index: dict[str, tuple[str, int]] = {}
+        # entity_id -> device_id (Xiaomi BLE has no endpoint indexing)
+        self._xiaomi_ble_entity_index: dict[str, str] = {}
 
     async def async_start(self) -> None:
         self._store = await async_get_store(self._hass)
@@ -111,6 +113,7 @@ class EventRuntime:
         )
         await self._setup_mqtt()
         self._setup_matter()
+        self._setup_xiaomi_ble()
 
     async def async_stop(self) -> None:
         for unsub in self._unsubs:
@@ -270,6 +273,64 @@ class EventRuntime:
             device.manufacturer, device.model
         ):
             match = definition.match_matter(endpoint, event_type, attrs)
+            if match is not None:
+                button_id, state_id = match
+                self._dispatch(definition, device_id, button_id, state_id)
+                return
+
+    # ----------------------------------------------------------- Xiaomi BLE
+    def _setup_xiaomi_ble(self) -> None:
+        """Discover xiaomi_ble event entities for matched devices and subscribe.
+
+        The xiaomi_ble integration exposes one ``event`` entity per device
+        whose ``event_type`` attribute updates on each gesture (press,
+        long_press, rotate_left, rotate_right, rotate_*_pressed).
+        """
+        if self._registry is None:
+            return
+        device_reg = dr.async_get(self._hass)
+        entity_reg = er.async_get(self._hass)
+        watched: list[str] = []
+
+        for device in device_reg.devices.values():
+            defs = self._registry.find_for_device(device.manufacturer, device.model)
+            if not defs or not any(d.has_xiaomi_ble for d in defs):
+                continue
+            for entry in er.async_entries_for_device(
+                entity_reg, device.id, include_disabled_entities=False
+            ):
+                if entry.domain != "event" or entry.platform != "xiaomi_ble":
+                    continue
+                self._xiaomi_ble_entity_index[entry.entity_id] = device.id
+                watched.append(entry.entity_id)
+
+        if not watched:
+            return
+        unsub = async_track_state_change_event(
+            self._hass, watched, self._handle_xiaomi_ble_state_change
+        )
+        self._unsubs.append(unsub)
+
+    @callback
+    def _handle_xiaomi_ble_state_change(self, event: Event) -> None:
+        new_state = event.data.get("new_state")
+        old_state = event.data.get("old_state")
+        if new_state is None or old_state is None:
+            return
+        attrs = dict(new_state.attributes or {})
+        event_type = attrs.get("event_type")
+        if not event_type:
+            return
+        device_id = self._xiaomi_ble_entity_index.get(new_state.entity_id)
+        if device_id is None or self._registry is None:
+            return
+        device = dr.async_get(self._hass).async_get(device_id)
+        if device is None:
+            return
+        for definition in self._registry.find_for_device(
+            device.manufacturer, device.model
+        ):
+            match = definition.match_xiaomi_ble(event_type, attrs)
             if match is not None:
                 button_id, state_id = match
                 self._dispatch(definition, device_id, button_id, state_id)

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Yeelight Smart Dimmer YLKG07YL — square wallplate with a single
+  round knob protruding from the centre. The knob is one physical
+  surface that handles every gesture (press / long-press / rotate
+  cw + ccw, plus rotate-while-pressed for colour temp), so the SVG
+  exposes one hotspot covering the whole disc.
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 320 320"
+     role="img"
+     aria-label="Yeelight Smart Dimmer">
+  <defs>
+    <!-- Glossy off-white knob, lit slightly from the upper-left. -->
+    <radialGradient id="ylkg-knob-fill" cx="40%" cy="34%" r="75%">
+      <stop offset="0%"  stop-color="#ffffff" />
+      <stop offset="55%" stop-color="#f5f3ed" />
+      <stop offset="100%" stop-color="#d8d2c4" />
+    </radialGradient>
+    <!-- Outer rim shadow that gives the knob its raised look. -->
+    <radialGradient id="ylkg-knob-rim" cx="50%" cy="50%" r="50%">
+      <stop offset="90%"  stop-color="#000" stop-opacity="0" />
+      <stop offset="100%" stop-color="#000" stop-opacity="0.22" />
+    </radialGradient>
+    <!-- Drop shadow under the knob (it sits ~14mm out from the wall). -->
+    <filter id="ylkg-knob-shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="6" stdDeviation="7"
+                    flood-color="#000" flood-opacity="0.18" />
+    </filter>
+  </defs>
+
+  <style>
+    .rs-button { cursor: pointer; transition: filter 120ms ease-in-out; }
+    .rs-button:hover .btn-shape { fill: #ebe6dc; }
+    .rs-button.is-active .btn-shape {
+      fill: var(--rs-btn-active-fill, #d8e8ff);
+      stroke: var(--rs-btn-active-stroke, #5b8def);
+    }
+    .rs-button.is-pulsing .btn-shape {
+      fill: var(--rs-btn-pulse-fill, #ffd66e);
+      transition: fill 80ms ease-out;
+    }
+  </style>
+
+  <!-- Wallplate: rounded square. -->
+  <rect x="20" y="20" width="280" height="280" rx="18" ry="18"
+        fill="#fafaf6" stroke="#dcd6cb" stroke-width="1.2" />
+
+  <!-- Tiny LED indicator below the knob. -->
+  <circle cx="160" cy="246" r="2.6" fill="#c8a878" />
+
+  <!-- ============ KNOB ============ -->
+  <g id="button-knob" class="rs-button">
+    <!-- The visible knob doubles as the click hit area. Hover and pulse
+         CSS swap the fill, replacing the gradient with a solid colour
+         to give the user clear feedback. -->
+    <circle class="btn-shape" cx="160" cy="160" r="74"
+            fill="url(#ylkg-knob-fill)"
+            filter="url(#ylkg-knob-shadow)" />
+    <!-- Rim shadow overlay for depth. -->
+    <circle cx="160" cy="160" r="74"
+            fill="url(#ylkg-knob-rim)" pointer-events="none" />
+    <!-- Top-left highlight crescent — the gloss reflection. -->
+    <ellipse cx="138" cy="134" rx="36" ry="20"
+             fill="#ffffff" fill-opacity="0.55"
+             pointer-events="none"
+             transform="rotate(-30 138 134)" />
+  </g>
+</svg>

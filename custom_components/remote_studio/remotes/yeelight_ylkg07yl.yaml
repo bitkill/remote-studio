@@ -1,0 +1,54 @@
+id: yeelight_ylkg07yl
+name: Yeelight Smart Dimmer (YLKG07YL)
+manufacturers:
+  - Xiaomi
+  - Yeelight
+models:
+  - YLKG07YL
+  - YLKG08YL
+battery:
+  count: 1
+  type: CR2450
+svg: yeelight_ylkg07yl.svg
+
+# Bluetooth Mesh dimmer with a single rotary knob mounted on a square
+# wallplate. The whole knob is one physical surface — you press it
+# (single / long press) AND rotate it (cw / ccw, optionally while
+# holding it down for the colour-temp gesture on stock Yeelight bulbs).
+#
+# HA's xiaomi_ble integration exposes one event entity per device whose
+# `event_type` attribute flips on each gesture. MiBeacon V3 traffic is
+# encrypted, so the device must be paired with its bind key in
+# xiaomi_ble before any events flow.
+
+buttons:
+  - id: knob
+    label: "Knob"
+    states:
+      - id: press
+        label: "Single press"
+        role: toggle
+        sources:
+          xiaomi_ble: { event: "press" }
+      - id: long_press
+        label: "Long press"
+        sources:
+          xiaomi_ble: { event: "long_press" }
+      - id: rotate_cw
+        label: "Rotate clockwise"
+        role: dim_up
+        sources:
+          xiaomi_ble: { event: "rotate_right" }
+      - id: rotate_ccw
+        label: "Rotate counter-clockwise"
+        role: dim_down
+        sources:
+          xiaomi_ble: { event: "rotate_left" }
+      - id: rotate_cw_pressed
+        label: "Rotate clockwise (pressed)"
+        sources:
+          xiaomi_ble: { event: "rotate_right_pressed" }
+      - id: rotate_ccw_pressed
+        label: "Rotate counter-clockwise (pressed)"
+        sources:
+          xiaomi_ble: { event: "rotate_left_pressed" }
