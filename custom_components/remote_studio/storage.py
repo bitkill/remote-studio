@@ -41,6 +41,10 @@ _LOGGER = logging.getLogger(__name__)
 STORAGE_VERSION = 2
 STORAGE_KEY = f"{DOMAIN}.mappings"
 DEFAULT_DIM_STEP = 20
+# Warm-white default for the `scene` long-press role. Matches the
+# `[255, 217, 168]` value the bilresa_three_light_dimmer_v2 blueprint
+# uses, which reads as a soft "movie night" white on most bulbs.
+DEFAULT_SCENE_COLOR: list[int] = [255, 217, 168]
 
 ActionStep = dict[str, Any]
 GroupConfig = dict[str, Any]                  # {target, dim_step}
@@ -132,14 +136,17 @@ class MappingStore:
         *,
         target: dict[str, Any] | None,
         dim_step: int | None,
+        scene_color: list[int] | None = None,
     ) -> None:
-        """Set target and/or dim_step for one (device, group)."""
+        """Set target / dim_step / scene_color for one (device, group)."""
         device = self._data.setdefault(device_id, _empty_device())
         groups = device.setdefault("groups", {})
         group = groups.setdefault(group_id, _empty_group())
         group["target"] = target
         if dim_step is not None:
             group["dim_step"] = int(dim_step)
+        if scene_color is not None:
+            group["scene_color"] = [int(c) for c in scene_color]
         # Drop the device entirely if nothing useful is set.
         self._cleanup(device_id)
         await self._async_save()
@@ -176,10 +183,16 @@ class MappingStore:
         if device is None:
             return
         groups = device.get("groups") or {}
-        # Drop any empty group dicts (no target and default dim_step).
+        # Drop a group dict only when none of its fields hold any
+        # user-meaningful value (no target, default dim_step, no
+        # scene_color override).
         for gid in list(groups.keys()):
             g = groups[gid]
-            if not g.get("target") and g.get("dim_step", DEFAULT_DIM_STEP) == DEFAULT_DIM_STEP:
+            if (
+                not g.get("target")
+                and g.get("dim_step", DEFAULT_DIM_STEP) == DEFAULT_DIM_STEP
+                and not g.get("scene_color")
+            ):
                 groups.pop(gid)
         if not groups and not device.get("overrides"):
             self._data.pop(device_id, None)

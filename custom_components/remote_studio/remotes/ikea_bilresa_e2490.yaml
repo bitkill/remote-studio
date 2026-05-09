@@ -56,6 +56,7 @@ buttons:
           matter_position: { endpoint: 3, edge: rising }
       - id: hold
         label: "Long press"
+        role: scene
         sources:
           matter: { endpoint: 3, event: "long_press" }
 
@@ -80,6 +81,7 @@ buttons:
           matter_position: { endpoint: 6, edge: rising }
       - id: hold
         label: "Long press"
+        role: scene
         sources:
           matter: { endpoint: 6, event: "long_press" }
 
@@ -104,5 +106,6 @@ buttons:
           matter_position: { endpoint: 9, edge: rising }
       - id: hold
         label: "Long press"
+        role: scene
         sources:
           matter: { endpoint: 9, event: "long_press" }

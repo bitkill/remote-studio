@@ -98,7 +98,18 @@ _SOURCES = vol.All(
 # (role + group target + dim_step) into a default action so most users
 # never touch the action editor. `none` is the literal-string opt-out
 # for states like STYRBAR's arrow buttons that have no obvious default.
-_ROLES = ("turn_on", "turn_off", "toggle", "dim_up", "dim_down", "none")
+_ROLES = (
+    "turn_on",
+    "turn_off",
+    "toggle",
+    "dim_up",
+    "dim_down",
+    # `scene` is the long-press default: ramp the target light to 100%
+    # brightness with the colour the user picked on the group card.
+    # Lights without colour support get just the brightness change.
+    "scene",
+    "none",
+)
 
 _STATE = vol.Schema(
     {
@@ -215,9 +226,9 @@ class RemoteDefinition:
     def groups(self) -> list[dict[str, Any]]:
         """Return a list of groups in declaration order.
 
-        Each entry: ``{id, label, has_dim, button_ids}``. ``has_dim`` is
-        true when any state in the group has a dim role — the UI uses
-        it to decide whether to show the dim-step input.
+        Each entry: ``{id, label, has_dim, has_scene, button_ids}``.
+        The ``has_*`` flags drive which inputs the device-view group
+        card surfaces (dim step, scene colour picker).
         """
         order: list[str] = []
         info: dict[str, dict[str, Any]] = {}
@@ -228,6 +239,7 @@ class RemoteDefinition:
                     "id": button.group,
                     "label": _humanise_group(button.group),
                     "has_dim": False,
+                    "has_scene": False,
                     "button_ids": [],
                 }
                 info[button.group] = entry
@@ -236,6 +248,8 @@ class RemoteDefinition:
             for state in button.states:
                 if state.role in ("dim_up", "dim_down"):
                     entry["has_dim"] = True
+                if state.role == "scene":
+                    entry["has_scene"] = True
         return [info[g] for g in order]
 
     def role_for(self, button_id: str, state_id: str) -> str:

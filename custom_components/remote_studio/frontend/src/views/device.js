@@ -18,6 +18,7 @@ const ROLE_LABELS = {
   toggle: "Toggle",
   dim_up: "Dim ▲",
   dim_down: "Dim ▼",
+  scene: "Scene",
   none: "—",
 };
 
@@ -192,21 +193,46 @@ function renderGroupCard(group) {
           <small>%</small>
         </label>`
     : "";
+  const sceneColor = rgbToHex(stored.scene_color) || "#ffd9a8";
+  const sceneRow = group.has_scene
+    ? `
+        <label class="scene-color">
+          <span>Long-press scene</span>
+          <input type="color"
+            value="${escapeAttr(sceneColor)}"
+            data-scene-color="${escapeAttr(group.id)}"
+            title="Colour to set on long-press (100% brightness)" />
+          <small>100%</small>
+        </label>`
+    : "";
+  const tags = [];
+  if (group.has_dim) tags.push('<span class="group-tag">dimmable</span>');
+  if (group.has_scene) tags.push('<span class="group-tag">scene</span>');
   return `
     <div class="group-card">
       <div class="group-card-head">
         <h3>${escapeHtml(group.label)}</h3>
-        ${group.has_dim ? '<span class="group-tag">dimmable</span>' : ""}
+        ${tags.join("")}
       </div>
       <div class="group-card-body">
         <div class="group-card-controls">
           <div class="group-target-slot" data-group="${escapeAttr(group.id)}"></div>
           ${dimRow}
+          ${sceneRow}
           <small class="group-summary">${escapeHtml(targetSummary)}</small>
         </div>
         <div class="group-card-state" data-state-pane="${escapeAttr(group.id)}"></div>
       </div>
     </div>`;
+}
+
+// Convert a stored [r, g, b] tuple to a hex string for <input type="color">,
+// or null when the user hasn't set one yet.
+function rgbToHex(rgb) {
+  if (!Array.isArray(rgb) || rgb.length !== 3) return null;
+  const [r, g, b] = rgb.map((v) => Math.max(0, Math.min(255, Number(v) || 0)));
+  const h = (n) => n.toString(16).padStart(2, "0");
+  return `#${h(r)}${h(g)}${h(b)}`;
 }
 
 function describeTarget(target) {
@@ -253,7 +279,7 @@ function renderStateRow(state, button, selectedStateId) {
     summary = "Pick a target above";
     summaryClass = "muted";
   } else {
-    summary = `Default · ${describeRole(state.role, target, groupCfg.dim_step ?? 20)}`;
+    summary = `Default · ${describeRole(state.role, target, groupCfg.dim_step ?? 20, groupCfg.scene_color)}`;
   }
 
   return `
@@ -271,7 +297,7 @@ function renderStateRow(state, button, selectedStateId) {
     </div>`;
 }
 
-function describeRole(role, target, dimStep) {
+function describeRole(role, target, dimStep, sceneColor) {
   const t = describeTargetShort(target);
   switch (role) {
     case "turn_on":
@@ -284,6 +310,12 @@ function describeRole(role, target, dimStep) {
       return `Brighten ${t} (+${dimStep}%)`;
     case "dim_down":
       return `Dim ${t} (-${dimStep}%)`;
+    case "scene": {
+      const hex = rgbToHex(sceneColor);
+      return hex
+        ? `Scene on ${t} (100% @ ${hex})`
+        : `Scene on ${t} (100%)`;
+    }
     default:
       return "Unbound";
   }

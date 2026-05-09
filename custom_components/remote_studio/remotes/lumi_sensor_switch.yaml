@@ -37,6 +37,7 @@ buttons:
           zha: { command: "click", args: { click_type: "triple" } }
       - id: hold
         label: "Hold"
+        role: scene
         sources:
           z2m: { action: "hold" }
           zha: { command: "hold" }

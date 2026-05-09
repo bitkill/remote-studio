@@ -32,6 +32,15 @@ function escapeHtmlInline(value) {
 }
 const escapeAttrInline = escapeHtmlInline;
 
+// "#rrggbb" -> [r, g, b], or null if the input is malformed.
+function hexToRgb(hex) {
+  if (typeof hex !== "string") return null;
+  const m = hex.trim().match(/^#?([0-9a-fA-F]{6})$/);
+  if (!m) return null;
+  const v = parseInt(m[1], 16);
+  return [(v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff];
+}
+
 function pickEntityIdFromTarget(target) {
   if (!target || typeof target !== "object") return null;
   const ids = target.entity_id;
@@ -640,6 +649,15 @@ export class RemoteStudioPanel extends HTMLElement {
         this._onDimStepChange(groupId, dimStep);
       });
     });
+    root.querySelectorAll("[data-scene-color]").forEach((input) => {
+      // `change` fires when the colour picker dialog closes.
+      input.addEventListener("change", (e) => {
+        this._onSceneColorChange(
+          e.target.dataset.sceneColor,
+          e.target.value,
+        );
+      });
+    });
   }
 
   _syncTargetPickerHass() {
@@ -982,6 +1000,14 @@ export class RemoteStudioPanel extends HTMLElement {
     this._refreshStateRows();
   }
 
+  _onSceneColorChange(groupId, hex) {
+    const rgb = hexToRgb(hex);
+    if (!rgb) return;
+    this._mergeGroupLocal(groupId, { scene_color: rgb });
+    this._scheduleGroupSave(groupId);
+    this._refreshStateRows();
+  }
+
   _mergeGroupLocal(groupId, patch) {
     if (!this._currentRemote) return;
     const groups = { ...(this._currentRemote.groups || {}) };
@@ -1005,14 +1031,18 @@ export class RemoteStudioPanel extends HTMLElement {
   async _saveGroup(groupId) {
     if (!this._currentRemote) return;
     const stored = this._currentRemote.groups?.[groupId] || {};
+    const msg = {
+      type: WS_SET_GROUP,
+      device_id: this._currentRemote.device.id,
+      group_id: groupId,
+      target: stored.target || null,
+      dim_step: stored.dim_step ?? DEFAULT_DIM_STEP,
+    };
+    if (Array.isArray(stored.scene_color) && stored.scene_color.length === 3) {
+      msg.scene_color = stored.scene_color;
+    }
     try {
-      await this._hass.connection.sendMessagePromise({
-        type: WS_SET_GROUP,
-        device_id: this._currentRemote.device.id,
-        group_id: groupId,
-        target: stored.target || null,
-        dim_step: stored.dim_step ?? DEFAULT_DIM_STEP,
-      });
+      await this._hass.connection.sendMessagePromise(msg);
       this._showToast("Saved");
     } catch (err) {
       this._showToast(
@@ -1037,6 +1067,7 @@ export class RemoteStudioPanel extends HTMLElement {
     const groupCfg = this._currentRemote?.groups?.[button.group] || {};
     const dimStep = groupCfg.dim_step ?? DEFAULT_DIM_STEP;
     const target = groupCfg.target;
+    const sceneColor = groupCfg.scene_color;
     button.states.forEach((state) => {
       const row = aside.querySelector(
         `.state-row[data-state-id="${cssEscape(state.id)}"]`,
@@ -1059,7 +1090,7 @@ export class RemoteStudioPanel extends HTMLElement {
         text = "Pick a target above";
         cls = "muted";
       } else {
-        text = `Default · ${this._describeRole(state.role, target, dimStep)}`;
+        text = `Default · ${this._describeRole(state.role, target, dimStep, sceneColor)}`;
       }
       summaryEl.className = `state-summary ${cls}`;
       summaryEl.textContent = text;
@@ -1078,7 +1109,7 @@ export class RemoteStudioPanel extends HTMLElement {
     return `${actions.length} steps`;
   }
 
-  _describeRole(role, target, dimStep) {
+  _describeRole(role, target, dimStep, sceneColor) {
     const t = this._describeTargetShort(target);
     switch (role) {
       case "turn_on": return `Turn on ${t}`;
@@ -1086,6 +1117,16 @@ export class RemoteStudioPanel extends HTMLElement {
       case "toggle": return `Toggle ${t}`;
       case "dim_up": return `Brighten ${t} (+${dimStep}%)`;
       case "dim_down": return `Dim ${t} (-${dimStep}%)`;
+      case "scene": {
+        if (Array.isArray(sceneColor) && sceneColor.length === 3) {
+          const [r, g, b] = sceneColor;
+          const hex = `#${[r, g, b]
+            .map((v) => Math.max(0, Math.min(255, v | 0)).toString(16).padStart(2, "0"))
+            .join("")}`;
+          return `Scene on ${t} (100% @ ${hex})`;
+        }
+        return `Scene on ${t} (100%)`;
+      }
       default: return "Unbound";
     }
   }

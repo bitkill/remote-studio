@@ -440,6 +440,20 @@ export const css = `
     color: inherit;
   }
   .dim-step small { opacity: 0.6; font-size: 0.8rem; }
+  .scene-color {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.85rem;
+  }
+  .scene-color > span { font-weight: 500; opacity: 0.75; flex: 0 0 auto; }
+  .scene-color input[type="color"] {
+    width: 44px; height: 28px;
+    padding: 0;
+    border: 1px solid var(--divider-color, #e0e0e0);
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+  }
+  .scene-color small { opacity: 0.6; font-size: 0.8rem; }
   .group-summary { font-size: 0.78rem; opacity: 0.6; }
 
   /* Role pills next to state labels */

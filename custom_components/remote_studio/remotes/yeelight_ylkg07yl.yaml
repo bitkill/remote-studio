@@ -32,6 +32,7 @@ buttons:
           xiaomi_ble: { event: "press" }
       - id: long_press
         label: "Long press"
+        role: scene
         sources:
           xiaomi_ble: { event: "long_press" }
       - id: rotate_cw
