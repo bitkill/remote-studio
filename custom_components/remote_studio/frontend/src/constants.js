@@ -166,15 +166,19 @@ export const MDI_PATHS = {
   },
   // Concentric arcs — radio waves (mdi:access-point).
   accessPoint: "M4.93 4.93A9.97 9.97 0 0 0 2 12c0 2.76 1.12 5.26 2.93 7.07l1.41-1.41A7.94 7.94 0 0 1 4 12c0-2.21.89-4.22 2.34-5.66zm14.14 0l-1.41 1.41A7.96 7.96 0 0 1 20 12c0 2.22-.89 4.22-2.34 5.66l1.41 1.41A9.97 9.97 0 0 0 22 12c0-2.76-1.12-5.26-2.93-7.07M7.76 7.76A5.98 5.98 0 0 0 6 12c0 1.65.67 3.15 1.76 4.24l1.41-1.41A4 4 0 0 1 8 12c0-1.11.45-2.11 1.17-2.83zm8.48 0l-1.41 1.41A4 4 0 0 1 16 12c0 1.11-.45 2.11-1.17 2.83l1.41 1.41A5.98 5.98 0 0 0 18 12c0-1.65-.67-3.15-1.76-4.24M12 10a2 2 0 0 0-2 2a2 2 0 0 0 2 2a2 2 0 0 0 2-2a2 2 0 0 0-2-2",
+  // Stylised "B" with arrows — the standard Bluetooth glyph (mdi:bluetooth).
+  bluetooth: "M14.88 16.29L13 18.17V14.41M13 5.83L14.88 7.71L13 9.58M17.71 7.71L12 2H11V9.58L6.41 5L5 6.41L10.59 12L5 17.58L6.41 19L11 14.41V22H12L17.71 16.29L13.41 12L17.71 7.71Z",
 };
 
 // Integration domain → human label + which monochrome MDI glyph to use.
 export const INTEGRATION_INFO = {
-  matter:      { label: "Matter", mdi: "matter" },
-  zha:         { label: "ZHA",    mdi: "zigbee" },
-  zigbee2mqtt: { label: "Z2M",    mdi: "zigbee" },
-  zigbee:      { label: "Zigbee", mdi: "zigbee" },
-  mqtt:        { label: "MQTT",   mdi: "accessPoint" },
+  matter:      { label: "Matter",     mdi: "matter" },
+  zha:         { label: "ZHA",        mdi: "zigbee" },
+  zigbee2mqtt: { label: "Z2M",        mdi: "zigbee" },
+  zigbee:      { label: "Zigbee",     mdi: "zigbee" },
+  xiaomi_ble:  { label: "Xiaomi BLE", mdi: "bluetooth" },
+  bluetooth:   { label: "Bluetooth",  mdi: "bluetooth" },
+  mqtt:        { label: "MQTT",       mdi: "accessPoint" },
 };
 
 // Material Design Icon paths used by HA's battery icons. We inline a few

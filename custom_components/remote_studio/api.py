@@ -65,7 +65,18 @@ def _ws_context(connection: websocket_api.ActiveConnection) -> Context:
 
 # Priority for picking a "primary" integration when a device is registered
 # with several. Matter/ZHA win over generic MQTT.
-_INTEGRATION_PRIORITY = ("matter", "zha", "zigbee2mqtt", "zigbee", "mqtt")
+_INTEGRATION_PRIORITY = (
+    "matter",
+    "zha",
+    "zigbee2mqtt",
+    "zigbee",
+    # xiaomi_ble must outrank the generic `bluetooth` identifier so a
+    # device that the integration owns is labelled as such, not just
+    # "Bluetooth".
+    "xiaomi_ble",
+    "bluetooth",
+    "mqtt",
+)
 
 
 def _device_integration(device) -> str | None:
