@@ -108,10 +108,15 @@ def resolve_actions(
             }
         ]
     if role == "scene":
-        # 100% brightness in the user's chosen colour. Lights without
+        # User-configurable brightness (default 100%) in the user's
+        # chosen colour (default: no colour override). Lights without
         # colour support quietly drop the rgb_color key — HA logs a
         # warning but applies the brightness fine.
-        data: dict[str, Any] = {"brightness_pct": 100, "transition": 0.5}
+        brightness = group.get("scene_brightness") or 100
+        data: dict[str, Any] = {
+            "brightness_pct": int(brightness),
+            "transition": 0.5,
+        }
         color = group.get("scene_color")
         if isinstance(color, (list, tuple)) and len(color) == 3:
             data["rgb_color"] = [int(c) for c in color]

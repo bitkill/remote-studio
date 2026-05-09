@@ -195,16 +195,35 @@ function renderGroupCard(group) {
         </label>`
     : "";
   const sceneColor = rgbToHex(stored.scene_color) || "#ffd9a8";
+  const sceneBrightness = Number.isFinite(Number(stored.scene_brightness))
+    ? Number(stored.scene_brightness)
+    : 100;
+  const sceneOverridden =
+    Array.isArray(stored.scene_color) || Number.isFinite(stored.scene_brightness);
   const sceneRow = group.has_scene
     ? `
-        <label class="scene-color">
-          <span>Long-press scene</span>
-          <input type="color"
-            value="${escapeAttr(sceneColor)}"
-            data-scene-color="${escapeAttr(group.id)}"
-            title="Colour to set on long-press (100% brightness)" />
-          <small>100%</small>
-        </label>`
+        <div class="scene-config">
+          <div class="scene-config-head">
+            <span>Long-press scene</span>
+            <button type="button"
+              class="scene-reset"
+              data-scene-reset="${escapeAttr(group.id)}"
+              ${sceneOverridden ? "" : "disabled"}
+              title="Reset to default (100% brightness, no colour override)"
+              aria-label="Reset scene to default">↺</button>
+          </div>
+          <div class="scene-config-row">
+            <input type="color"
+              value="${escapeAttr(sceneColor)}"
+              data-scene-color="${escapeAttr(group.id)}"
+              title="Colour applied on long-press" />
+            <input type="range" min="1" max="100" step="5"
+              value="${sceneBrightness}"
+              data-scene-brightness="${escapeAttr(group.id)}"
+              aria-label="Scene brightness percent" />
+            <output class="scene-brightness-value">${sceneBrightness}%</output>
+          </div>
+        </div>`
     : "";
   const tags = [];
   if (group.has_dim) tags.push('<span class="group-tag">dimmable</span>');
@@ -280,7 +299,7 @@ function renderStateRow(state, button, selectedStateId) {
     summary = "Pick a target above";
     summaryClass = "muted";
   } else {
-    summary = `Default · ${describeRole(state.role, target, groupCfg.dim_step ?? 20, groupCfg.scene_color)}`;
+    summary = `Default · ${describeRole(state.role, target, groupCfg.dim_step ?? 20, groupCfg.scene_color, groupCfg.scene_brightness)}`;
   }
 
   return `
@@ -298,7 +317,7 @@ function renderStateRow(state, button, selectedStateId) {
     </div>`;
 }
 
-function describeRole(role, target, dimStep, sceneColor) {
+function describeRole(role, target, dimStep, sceneColor, sceneBrightness) {
   const t = describeTargetShort(target);
   switch (role) {
     case "turn_on":
@@ -313,9 +332,10 @@ function describeRole(role, target, dimStep, sceneColor) {
       return `Dim ${t} (-${dimStep}%)`;
     case "scene": {
       const hex = rgbToHex(sceneColor);
+      const pct = Number.isFinite(sceneBrightness) ? sceneBrightness : 100;
       return hex
-        ? `Scene on ${t} (100% @ ${hex})`
-        : `Scene on ${t} (100%)`;
+        ? `Scene on ${t} (${pct}% @ ${hex})`
+        : `Scene on ${t} (${pct}%)`;
     }
     default:
       return "Unbound";

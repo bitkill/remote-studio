@@ -751,6 +751,22 @@ export class RemoteStudioPanel extends HTMLElement {
         );
       });
     });
+    root.querySelectorAll("[data-scene-brightness]").forEach((input) => {
+      input.addEventListener("input", (e) => {
+        const groupId = e.target.dataset.sceneBrightness;
+        const raw = parseInt(e.target.value, 10);
+        const pct = Number.isFinite(raw) && raw >= 1 && raw <= 100 ? raw : 100;
+        const out = e.target.parentElement?.querySelector(".scene-brightness-value");
+        if (out) out.textContent = `${pct}%`;
+        this._onSceneBrightnessChange(groupId, pct);
+      });
+    });
+    root.querySelectorAll("[data-scene-reset]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const groupId = e.currentTarget.dataset.sceneReset;
+        this._onSceneReset(groupId);
+      });
+    });
   }
 
   _syncTargetPickerHass() {
@@ -1087,6 +1103,46 @@ export class RemoteStudioPanel extends HTMLElement {
     this._mergeGroupLocal(groupId, { scene_color: rgb });
     this._scheduleGroupSave(groupId);
     this._refreshStateRows();
+    this._refreshSceneResetButton(groupId);
+  }
+
+  _onSceneBrightnessChange(groupId, pct) {
+    this._mergeGroupLocal(groupId, { scene_brightness: pct });
+    this._scheduleGroupSave(groupId);
+    this._refreshStateRows();
+    this._refreshSceneResetButton(groupId);
+  }
+
+  // Reset clears scene_color + scene_brightness from the local cache;
+  // _saveGroup omits absent fields, so the storage layer drops them
+  // and the runtime falls back to its built-in scene defaults
+  // (100% brightness, no colour override). Re-renders the device view
+  // so the colour input + brightness slider snap back to defaults.
+  _onSceneReset(groupId) {
+    if (!this._currentRemote) return;
+    const groups = { ...(this._currentRemote.groups || {}) };
+    const next = { ...(groups[groupId] || {}) };
+    delete next.scene_color;
+    delete next.scene_brightness;
+    groups[groupId] = next;
+    this._currentRemote = { ...this._currentRemote, groups };
+    this._scheduleGroupSave(groupId);
+    this._render();
+  }
+
+  // Toggle the disabled state of the reset button without re-rendering
+  // the whole device view (preserves picker focus + slider drag state).
+  _refreshSceneResetButton(groupId) {
+    const root = this.shadowRoot;
+    if (!root || !this._currentRemote) return;
+    const stored = this._currentRemote.groups?.[groupId] || {};
+    const overridden =
+      Array.isArray(stored.scene_color) ||
+      Number.isFinite(stored.scene_brightness);
+    const btn = root.querySelector(
+      `[data-scene-reset="${cssEscape(groupId)}"]`,
+    );
+    if (btn) btn.disabled = !overridden;
   }
 
   _mergeGroupLocal(groupId, patch) {
@@ -1122,6 +1178,13 @@ export class RemoteStudioPanel extends HTMLElement {
     if (Array.isArray(stored.scene_color) && stored.scene_color.length === 3) {
       msg.scene_color = stored.scene_color;
     }
+    if (
+      Number.isFinite(stored.scene_brightness) &&
+      stored.scene_brightness >= 1 &&
+      stored.scene_brightness <= 100
+    ) {
+      msg.scene_brightness = stored.scene_brightness;
+    }
     try {
       await this._hass.connection.sendMessagePromise(msg);
       this._showToast("Saved");
@@ -1149,6 +1212,7 @@ export class RemoteStudioPanel extends HTMLElement {
     const dimStep = groupCfg.dim_step ?? DEFAULT_DIM_STEP;
     const target = groupCfg.target;
     const sceneColor = groupCfg.scene_color;
+    const sceneBrightness = groupCfg.scene_brightness;
     button.states.forEach((state) => {
       const row = aside.querySelector(
         `.state-row[data-state-id="${cssEscape(state.id)}"]`,
@@ -1171,7 +1235,7 @@ export class RemoteStudioPanel extends HTMLElement {
         text = "Pick a target above";
         cls = "muted";
       } else {
-        text = `Default · ${this._describeRole(state.role, target, dimStep, sceneColor)}`;
+        text = `Default · ${this._describeRole(state.role, target, dimStep, sceneColor, sceneBrightness)}`;
       }
       summaryEl.className = `state-summary ${cls}`;
       summaryEl.textContent = text;
@@ -1190,7 +1254,7 @@ export class RemoteStudioPanel extends HTMLElement {
     return `${actions.length} steps`;
   }
 
-  _describeRole(role, target, dimStep, sceneColor) {
+  _describeRole(role, target, dimStep, sceneColor, sceneBrightness) {
     const t = this._describeTargetShort(target);
     switch (role) {
       case "turn_on": return `Turn on ${t}`;
@@ -1199,14 +1263,15 @@ export class RemoteStudioPanel extends HTMLElement {
       case "dim_up": return `Brighten ${t} (+${dimStep}%)`;
       case "dim_down": return `Dim ${t} (-${dimStep}%)`;
       case "scene": {
+        const pct = Number.isFinite(sceneBrightness) ? sceneBrightness : 100;
         if (Array.isArray(sceneColor) && sceneColor.length === 3) {
           const [r, g, b] = sceneColor;
           const hex = `#${[r, g, b]
             .map((v) => Math.max(0, Math.min(255, v | 0)).toString(16).padStart(2, "0"))
             .join("")}`;
-          return `Scene on ${t} (100% @ ${hex})`;
+          return `Scene on ${t} (${pct}% @ ${hex})`;
         }
-        return `Scene on ${t} (100%)`;
+        return `Scene on ${t} (${pct}%)`;
       }
       default: return "Unbound";
     }

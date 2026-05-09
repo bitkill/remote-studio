@@ -480,20 +480,77 @@ export const css = `
     opacity: 0.85;
     font-size: 0.82rem;
   }
-  .scene-color {
-    display: flex; align-items: center; gap: 8px;
+  .scene-config {
+    display: flex; flex-direction: column; gap: 6px;
     font-size: 0.85rem;
   }
-  .scene-color > span { font-weight: 500; opacity: 0.75; flex: 0 0 auto; }
-  .scene-color input[type="color"] {
-    width: 44px; height: 28px;
+  .scene-config-head {
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .scene-config-head > span { font-weight: 500; opacity: 0.75; }
+  .scene-reset {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 1px solid var(--divider-color, #e0e0e0);
+    background: transparent;
+    color: var(--secondary-text-color, #888);
+    font-size: 0.95rem; line-height: 1; padding: 0;
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: color 120ms ease-out, border-color 120ms ease-out, opacity 120ms ease-out;
+  }
+  .scene-reset:hover {
+    color: var(--primary-text-color);
+    border-color: var(--primary-color, #5b8def);
+  }
+  .scene-reset[disabled] {
+    opacity: 0.35;
+    cursor: default;
+  }
+  .scene-config-row {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .scene-config-row input[type="color"] {
+    width: 36px; height: 26px;
     padding: 0;
     border: 1px solid var(--divider-color, #e0e0e0);
     border-radius: 6px;
     background: transparent;
     cursor: pointer;
+    flex: 0 0 auto;
   }
-  .scene-color small { opacity: 0.6; font-size: 0.8rem; }
+  .scene-config-row input[type="range"] {
+    flex: 1; min-width: 60px;
+    -webkit-appearance: none; appearance: none;
+    height: 4px;
+    background: var(--divider-color, rgba(0, 0, 0, 0.12));
+    border-radius: 999px;
+    outline: none;
+    cursor: pointer;
+  }
+  .scene-config-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--primary-color, #5b8def);
+    border: 2px solid var(--card-background-color, #fff);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    cursor: pointer;
+  }
+  .scene-config-row input[type="range"]::-moz-range-thumb {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--primary-color, #5b8def);
+    border: 2px solid var(--card-background-color, #fff);
+    cursor: pointer;
+  }
+  .scene-brightness-value {
+    flex: 0 0 38px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.82rem;
+    opacity: 0.85;
+  }
   .group-summary { font-size: 0.78rem; opacity: 0.6; }
 
   /* Role pills next to state labels */

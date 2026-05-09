@@ -521,10 +521,13 @@ def _find_battery(hass: HomeAssistant, device_id: str) -> dict[str, Any] | None:
         vol.Optional("target"): vol.Any(None, dict),
         vol.Optional("dim_step"): vol.All(int, vol.Range(min=0, max=100)),
         # rgb tuple [r, g, b], each 0-255. Used by the `scene` role
-        # default (long-press → 100% brightness in this colour).
+        # default (long-press → brightness in this colour).
         vol.Optional("scene_color"): vol.All(
             [vol.All(int, vol.Range(min=0, max=255))], vol.Length(min=3, max=3)
         ),
+        # Brightness percent (1-100) for the scene role. Defaults to
+        # 100 when not set.
+        vol.Optional("scene_brightness"): vol.All(int, vol.Range(min=1, max=100)),
     }
 )
 @websocket_api.async_response
@@ -540,6 +543,7 @@ async def ws_set_group(
         target=msg.get("target"),
         dim_step=msg.get("dim_step"),
         scene_color=msg.get("scene_color"),
+        scene_brightness=msg.get("scene_brightness"),
     )
     connection.send_result(msg["id"], {"ok": True})
 

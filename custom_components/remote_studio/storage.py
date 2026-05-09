@@ -137,16 +137,28 @@ class MappingStore:
         target: dict[str, Any] | None,
         dim_step: int | None,
         scene_color: list[int] | None = None,
+        scene_brightness: int | None = None,
     ) -> None:
-        """Set target / dim_step / scene_color for one (device, group)."""
+        """Replace the full config for one (device, group).
+
+        The frontend always sends a complete view of the group on save,
+        so any optional field that's None / absent is treated as "no
+        override" — the runtime falls back to its built-in default
+        (100% brightness, no colour). That makes "reset to defaults" a
+        one-line frontend change (drop the field, save) instead of a
+        new WS endpoint.
+        """
         device = self._data.setdefault(device_id, _empty_device())
         groups = device.setdefault("groups", {})
-        group = groups.setdefault(group_id, _empty_group())
-        group["target"] = target
+        new_group: GroupConfig = _empty_group()
+        new_group["target"] = target
         if dim_step is not None:
-            group["dim_step"] = int(dim_step)
+            new_group["dim_step"] = int(dim_step)
         if scene_color is not None:
-            group["scene_color"] = [int(c) for c in scene_color]
+            new_group["scene_color"] = [int(c) for c in scene_color]
+        if scene_brightness is not None:
+            new_group["scene_brightness"] = int(scene_brightness)
+        groups[group_id] = new_group
         # Drop the device entirely if nothing useful is set.
         self._cleanup(device_id)
         await self._async_save()
@@ -192,6 +204,7 @@ class MappingStore:
                 not g.get("target")
                 and g.get("dim_step", DEFAULT_DIM_STEP) == DEFAULT_DIM_STEP
                 and not g.get("scene_color")
+                and not g.get("scene_brightness")
             ):
                 groups.pop(gid)
         if not groups and not device.get("overrides"):
