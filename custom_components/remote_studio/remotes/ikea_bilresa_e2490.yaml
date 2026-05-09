@@ -20,13 +20,19 @@ svg: ikea_bilresa_e2490.svg
 #   Dot 2 → endpoint 4 (CW tick) · 5 (CCW tick) · 6 (press, with hold)
 #   Dot 3 → endpoint 7 (CW tick) · 8 (CCW tick) · 9 (press, with hold)
 #
-# Source: bilresa_three_light_dimmer_v2.yaml blueprint.
+# Each dot is its own group, so the user can wire a different target
+# per dot.
 #
-# We surface 4 states per dot — rotate_cw / rotate_ccw / press / hold —
-# matching the four actions a user actually wires up in practice.
-# (multi_press_2/3 and long_release are dropped to keep the editor tidy.)
+# Latency note: HA debounces matter event entities by ~400-1200 ms,
+# so listening to them makes rotation feel sluggish. We listen to the
+# device's `current_switch_position` sensors instead, which flip
+# 0 → 1 → 0 on physical actuation with ~20-40 ms latency.
 #
-# Each dot is its own group: pick a separate target per dot.
+#   ⚠ The position sensors are DISABLED by default in HA. Open the
+#   BILRESA device page in HA, click "+N disabled entities" and
+#   enable every "Current switch position" sensor before this layout
+#   responds to rotation / press. Matter event entities still feed
+#   the long-press path (no positional analogue for hold timing).
 
 buttons:
   - id: dot1
@@ -37,17 +43,17 @@ buttons:
         label: "Rotate clockwise"
         role: dim_up
         sources:
-          matter: { endpoint: 1, event: "multi_press_1" }
+          matter_position: { endpoint: 1, edge: rising }
       - id: rotate_ccw
         label: "Rotate counter-clockwise"
         role: dim_down
         sources:
-          matter: { endpoint: 2, event: "multi_press_1" }
+          matter_position: { endpoint: 2, edge: rising }
       - id: press
         label: "Press"
         role: toggle
         sources:
-          matter: { endpoint: 3, event: "multi_press_1" }
+          matter_position: { endpoint: 3, edge: rising }
       - id: hold
         label: "Long press"
         sources:
@@ -61,17 +67,17 @@ buttons:
         label: "Rotate clockwise"
         role: dim_up
         sources:
-          matter: { endpoint: 4, event: "multi_press_1" }
+          matter_position: { endpoint: 4, edge: rising }
       - id: rotate_ccw
         label: "Rotate counter-clockwise"
         role: dim_down
         sources:
-          matter: { endpoint: 5, event: "multi_press_1" }
+          matter_position: { endpoint: 5, edge: rising }
       - id: press
         label: "Press"
         role: toggle
         sources:
-          matter: { endpoint: 6, event: "multi_press_1" }
+          matter_position: { endpoint: 6, edge: rising }
       - id: hold
         label: "Long press"
         sources:
@@ -85,17 +91,17 @@ buttons:
         label: "Rotate clockwise"
         role: dim_up
         sources:
-          matter: { endpoint: 7, event: "multi_press_1" }
+          matter_position: { endpoint: 7, edge: rising }
       - id: rotate_ccw
         label: "Rotate counter-clockwise"
         role: dim_down
         sources:
-          matter: { endpoint: 8, event: "multi_press_1" }
+          matter_position: { endpoint: 8, edge: rising }
       - id: press
         label: "Press"
         role: toggle
         sources:
-          matter: { endpoint: 9, event: "multi_press_1" }
+          matter_position: { endpoint: 9, edge: rising }
       - id: hold
         label: "Long press"
         sources:

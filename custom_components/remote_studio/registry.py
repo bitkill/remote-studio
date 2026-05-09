@@ -39,7 +39,11 @@ _ZHA_SOURCE = vol.Schema(
 _Z2M_SOURCE = vol.Schema({vol.Required("action"): str})
 _MATTER_SOURCE = vol.Schema(
     {
-        vol.Required("event"): str,
+        # Single event_type, or a list when one state corresponds to many
+        # related events. The IKEA scroll wheel for example reports
+        # rotation as `multi_press_<N>` where N is the tick count, so a
+        # `rotate_cw` state lists multi_press_1..multi_press_9.
+        vol.Required("event"): vol.Any(str, [str]),
         # 1-based index into the device's event entities (sorted by unique_id).
         # For multi-button Matter remotes each physical button is a separate
         # endpoint and HA registers one event entity per endpoint.
@@ -56,8 +60,24 @@ _MATTER_SOURCE = vol.Schema(
 # device for the current generation we support, so no endpoint required.
 _XIAOMI_BLE_SOURCE = vol.Schema(
     {
-        vol.Required("event"): str,
+        vol.Required("event"): vol.Any(str, [str]),
         vol.Optional("attributes"): dict,
+    }
+)
+# Matter "Current switch position" sensors (one per endpoint) flip
+# 0 → 1 → 0 on each physical actuation, *without* the 400-1200 ms
+# debounce that HA applies to matter event entities. For low-latency
+# rotation / press detection we listen to those sensors directly and
+# dispatch on the rising or falling edge.
+#
+# The sensors are disabled by default in HA — users have to enable
+# every "Current switch position" entity on the device before this
+# source path kicks in. The slower matter event sources stay in the
+# YAML as a fallback for users who haven't enabled them.
+_MATTER_POSITION_SOURCE = vol.Schema(
+    {
+        vol.Required("endpoint"): vol.Coerce(int),
+        vol.Optional("edge", default="rising"): vol.In(("rising", "falling")),
     }
 )
 
@@ -67,6 +87,7 @@ _SOURCES = vol.All(
             vol.Optional("zha"): _ZHA_SOURCE,
             vol.Optional("z2m"): _Z2M_SOURCE,
             vol.Optional("matter"): _MATTER_SOURCE,
+            vol.Optional("matter_position"): _MATTER_POSITION_SOURCE,
             vol.Optional("xiaomi_ble"): _XIAOMI_BLE_SOURCE,
         }
     ),
@@ -172,6 +193,12 @@ class RemoteDefinition:
     xiaomi_ble_index: dict[
         str, list[tuple[str, str, dict[str, Any]]]
     ] = field(default_factory=dict)
+    # Matter position-sensor index keyed by (endpoint, edge) -> list of
+    # (button_id, state_id). No attribute filter — the sensor only
+    # reports a numeric position string.
+    matter_position_index: dict[
+        tuple[int, str], list[tuple[str, str]]
+    ] = field(default_factory=dict)
 
     @property
     def has_matter(self) -> bool:
@@ -180,6 +207,10 @@ class RemoteDefinition:
     @property
     def has_xiaomi_ble(self) -> bool:
         return bool(self.xiaomi_ble_index)
+
+    @property
+    def has_matter_position(self) -> bool:
+        return bool(self.matter_position_index)
 
     def groups(self) -> list[dict[str, Any]]:
         """Return a list of groups in declaration order.
@@ -287,6 +318,14 @@ class RemoteDefinition:
                 return button_id, state_id
         return None
 
+    def match_matter_position(
+        self, endpoint: int, edge: str
+    ) -> tuple[str, str] | None:
+        candidates = self.matter_position_index.get((endpoint, edge))
+        if not candidates:
+            return None
+        return candidates[0]
+
 
 # -------------------------------------------------------------------- loading
 def _humanise_group(group_id: str) -> str:
@@ -364,24 +403,31 @@ def _build_definition(raw: dict[str, Any], source_path: Path) -> RemoteDefinitio
                 definition.z2m_index[z2m["action"]] = (button.id, state.id)
             matter = state.sources.get("matter")
             if matter is not None:
-                key = (int(matter["endpoint"]), matter["event"])
-                definition.matter_index.setdefault(key, []).append(
-                    (
-                        button.id,
-                        state.id,
-                        dict(matter.get("attributes") or {}),
+                events = matter["event"]
+                if isinstance(events, str):
+                    events = [events]
+                attrs_filter = dict(matter.get("attributes") or {})
+                endpoint = int(matter["endpoint"])
+                for event in events:
+                    key = (endpoint, event)
+                    definition.matter_index.setdefault(key, []).append(
+                        (button.id, state.id, attrs_filter)
                     )
-                )
             xiaomi_ble = state.sources.get("xiaomi_ble")
             if xiaomi_ble is not None:
-                definition.xiaomi_ble_index.setdefault(
-                    xiaomi_ble["event"], []
-                ).append(
-                    (
-                        button.id,
-                        state.id,
-                        dict(xiaomi_ble.get("attributes") or {}),
+                events = xiaomi_ble["event"]
+                if isinstance(events, str):
+                    events = [events]
+                attrs_filter = dict(xiaomi_ble.get("attributes") or {})
+                for event in events:
+                    definition.xiaomi_ble_index.setdefault(event, []).append(
+                        (button.id, state.id, attrs_filter)
                     )
+            mp = state.sources.get("matter_position")
+            if mp is not None:
+                key = (int(mp["endpoint"]), mp["edge"])
+                definition.matter_position_index.setdefault(key, []).append(
+                    (button.id, state.id)
                 )
 
     return definition

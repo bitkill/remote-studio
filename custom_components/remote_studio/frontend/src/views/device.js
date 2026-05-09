@@ -45,6 +45,7 @@ export function renderDevice() {
     ${renderHeader.call(this, device, definition)}
     ${this._error ? `<div class="error">${escapeHtml(this._error)}</div>` : ""}
     ${this._toast ? `<div class="toast">${escapeHtml(this._toast)}</div>` : ""}
+    ${renderHealthWarning(this._currentRemote.health)}
     ${renderAutomationWarning(this._currentRemote.automations)}
     <section class="groups-section">${groupCards}</section>
     <div class="remote-layout">
@@ -121,6 +122,30 @@ function renderHeader(device, definition) {
         <span>Test mode</span>
       </label>
     </header>`;
+}
+
+// Surface required-but-disabled entities (e.g. matter
+// current_switch_position sensors) with a one-click fix that calls
+// the WS_ENABLE_ENTITIES command.
+function renderHealthWarning(health) {
+  const disabled = health?.disabled_entities;
+  if (!Array.isArray(disabled) || disabled.length === 0) return "";
+  const items = disabled
+    .map((d) => `<li><code>${escapeHtml(d.entity_id)}</code></li>`)
+    .join("");
+  const n = disabled.length;
+  return `
+    <div class="automation-warning health-warning" role="status">
+      <div class="warning-icon" aria-hidden="true">⚠</div>
+      <div class="warning-body">
+        <div class="warning-lead">${n} sensor${n === 1 ? " is" : "s are"} disabled — rotation and press won't fire until ${n === 1 ? "it's" : "they're"} on.</div>
+        <p class="hint">Matter ships these <code>current_switch_position</code> sensors disabled by default; enabling them is what gives you low-latency dispatch.</p>
+        <ul class="warning-list">${items}</ul>
+        <button class="primary health-fix" data-enable-entities>Enable ${n} sensor${n === 1 ? "" : "s"}</button>
+        <p class="hint">After enabling, allow ~30 s for HA's matter integration to start polling the new entities.</p>
+      </div>
+    </div>
+  `;
 }
 
 function renderAutomationWarning(automations) {

@@ -39,6 +39,25 @@ SIGNAL_REMOTE_EVENT = f"{DOMAIN}:remote_event"
 Z2M_TOPIC = "zigbee2mqtt/+"
 
 
+def _matter_endpoint_from_unique_id(unique_id: str | None) -> int | None:
+    """Pull the endpoint number out of a matter entity's unique_id.
+
+    The matter integration formats unique_ids as
+    `<bridge>-<node>-MatterNodeDevice-<endpoint>-<cluster>-…`. The
+    endpoint sits at index 3 when split on `-`. Returns None if the
+    layout doesn't look right (defensive — older HA may differ).
+    """
+    if not unique_id:
+        return None
+    parts = unique_id.split("-")
+    if len(parts) < 4:
+        return None
+    try:
+        return int(parts[3])
+    except (ValueError, TypeError):
+        return None
+
+
 def resolve_actions(
     definition: RemoteDefinition,
     store: MappingStore,
@@ -104,6 +123,13 @@ class EventRuntime:
         self._matter_entity_index: dict[str, tuple[str, int]] = {}
         # entity_id -> device_id (Xiaomi BLE has no endpoint indexing)
         self._xiaomi_ble_entity_index: dict[str, str] = {}
+        # entity_id -> (device_id, endpoint_index) for Matter
+        # current_switch_position sensors. Same numbering as event entities.
+        self._matter_position_index: dict[str, tuple[str, int]] = {}
+        # Tracked separately from _unsubs so we can tear down + rebuild
+        # this single subscription when entities get enabled/disabled at
+        # runtime (the rest of _unsubs only matters at shutdown).
+        self._mp_unsub: Callable[[], None] | None = None
 
     async def async_start(self) -> None:
         self._store = await async_get_store(self._hass)
@@ -113,6 +139,7 @@ class EventRuntime:
         )
         await self._setup_mqtt()
         self._setup_matter()
+        self._setup_matter_position()
         self._setup_xiaomi_ble()
 
     async def async_stop(self) -> None:
@@ -210,10 +237,8 @@ class EventRuntime:
         changes on these entities; the latest event_type lives in
         ``new_state.attributes['event_type']``.
 
-        Entity-to-endpoint mapping: Matter integration unique_ids embed the
-        endpoint, but the format isn't part of the public contract. We sort
-        the device's matter event entities by unique_id (stable ordering for
-        a given install) and assign 1-based endpoint indices in that order.
+        Endpoint comes from the unique_id (`<…>-MatterNodeDevice-<n>-…`)
+        so the same number lines up with the matter_position sensors.
         """
         if self._registry is None:
             return
@@ -225,18 +250,15 @@ class EventRuntime:
             defs = self._registry.find_for_device(device.manufacturer, device.model)
             if not defs or not any(d.has_matter for d in defs):
                 continue
-            entries = sorted(
-                (
-                    e
-                    for e in er.async_entries_for_device(
-                        entity_reg, device.id, include_disabled_entities=False
-                    )
-                    if e.domain == "event" and e.platform == "matter"
-                ),
-                key=lambda e: e.unique_id or e.entity_id,
-            )
-            for index, entry in enumerate(entries, start=1):
-                self._matter_entity_index[entry.entity_id] = (device.id, index)
+            for entry in er.async_entries_for_device(
+                entity_reg, device.id, include_disabled_entities=False
+            ):
+                if entry.domain != "event" or entry.platform != "matter":
+                    continue
+                endpoint = _matter_endpoint_from_unique_id(entry.unique_id)
+                if endpoint is None:
+                    continue
+                self._matter_entity_index[entry.entity_id] = (device.id, endpoint)
                 watched.append(entry.entity_id)
 
         if not watched:
@@ -273,6 +295,107 @@ class EventRuntime:
             device.manufacturer, device.model
         ):
             match = definition.match_matter(endpoint, event_type, attrs)
+            if match is not None:
+                button_id, state_id = match
+                self._dispatch(definition, device_id, button_id, state_id)
+                return
+
+    # ------------------------------------------------- Matter position sensors
+    def _setup_matter_position(self) -> None:
+        """Subscribe to Matter `current_switch_position` sensors.
+
+        These sensors flip 0 → 1 on physical actuation and 1 → 0 on
+        release without HA's matter event-entity debounce, so any
+        layout that wants snappy rotation / press detection points its
+        states at this source.
+
+        Endpoint numbering matches the matter event entities — sort
+        the device's matter sensor entries by unique_id and assign
+        1-based indices in that order.
+
+        Idempotent: tears down the previous subscription and rebuilds
+        the index, so it can be called again when entities are enabled
+        at runtime via the panel's "Enable N sensors" button.
+        """
+        if self._mp_unsub is not None:
+            try:
+                self._mp_unsub()
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug(
+                    "matter_position unsub raised on resync", exc_info=True
+                )
+            self._mp_unsub = None
+        self._matter_position_index.clear()
+
+        if self._registry is None:
+            return
+        device_reg = dr.async_get(self._hass)
+        entity_reg = er.async_get(self._hass)
+        watched: list[str] = []
+
+        for device in device_reg.devices.values():
+            defs = self._registry.find_for_device(device.manufacturer, device.model)
+            if not defs or not any(d.has_matter_position for d in defs):
+                continue
+            # Matter unique_ids embed the endpoint at index 3 — e.g.
+            # `<bridge>-<node>-MatterNodeDevice-1-GenericSwitch-59-1`.
+            # Parse it directly so the position-sensor index uses the
+            # same numbering as the YAML's matter `endpoint:` fields.
+            for entry in er.async_entries_for_device(
+                entity_reg, device.id, include_disabled_entities=False
+            ):
+                if (
+                    entry.domain != "sensor"
+                    or entry.platform != "matter"
+                    or "current_switch_position" not in (entry.entity_id or "")
+                ):
+                    continue
+                endpoint = _matter_endpoint_from_unique_id(entry.unique_id)
+                if endpoint is None:
+                    continue
+                self._matter_position_index[entry.entity_id] = (
+                    device.id,
+                    endpoint,
+                )
+                watched.append(entry.entity_id)
+
+        if not watched:
+            return
+        self._mp_unsub = async_track_state_change_event(
+            self._hass, watched, self._handle_matter_position_change
+        )
+
+    def resync_matter_position(self) -> None:
+        """Public hook used by the WS API after enabling entities."""
+        self._setup_matter_position()
+
+    @callback
+    def _handle_matter_position_change(self, event: Event) -> None:
+        new_state = event.data.get("new_state")
+        old_state = event.data.get("old_state")
+        if new_state is None or old_state is None:
+            return
+        new = (new_state.state or "").strip()
+        old = (old_state.state or "").strip()
+        if new in ("unknown", "unavailable"):
+            return
+        if old != "1" and new == "1":
+            edge = "rising"
+        elif old == "1" and new != "1":
+            edge = "falling"
+        else:
+            return
+        meta = self._matter_position_index.get(new_state.entity_id)
+        if meta is None or self._registry is None:
+            return
+        device_id, endpoint = meta
+        device = dr.async_get(self._hass).async_get(device_id)
+        if device is None:
+            return
+        for definition in self._registry.find_for_device(
+            device.manufacturer, device.model
+        ):
+            match = definition.match_matter_position(endpoint, edge)
             if match is not None:
                 button_id, state_id = match
                 self._dispatch(definition, device_id, button_id, state_id)

@@ -133,6 +133,52 @@ export const css = `
   .automation-warning .warning-list li { margin: 2px 0; }
   .automation-warning .warning-list a { color: inherit; }
   .automation-warning .hint { margin-top: 6px; }
+  .health-warning .warning-list code,
+  .health-warning .warning-body code {
+    background: var(--secondary-background-color, #f4f4f4);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 0.78rem;
+  }
+  .health-fix {
+    margin-top: 10px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: none;
+    cursor: pointer;
+    font: inherit;
+    background: var(--primary-color, #5b8def);
+    color: var(--text-primary-color, #fff);
+  }
+  .health-fix:hover { filter: brightness(0.96); }
+  .health-fix[disabled] { opacity: 0.6; cursor: not-allowed; }
+  /* Success state after the user clicks Enable — the banner stays
+     visible while matter brings the sensors up so the user can see
+     why rotation isn't snappy yet. */
+  .automation-warning.health-warning.is-success {
+    background: color-mix(in srgb, #5bc07a 14%, var(--card-background-color, #fff));
+    border-color: color-mix(in srgb, #5bc07a 55%, transparent);
+  }
+  .automation-warning.health-warning.is-success .warning-icon { color: #2c7a40; }
+  .health-progress {
+    margin-top: 10px;
+    height: 5px;
+    border-radius: 999px;
+    background: rgba(0,0,0,0.07);
+    overflow: hidden;
+  }
+  .health-progress > div {
+    height: 100%;
+    width: 100%;
+    background: var(--primary-color, #5b8def);
+    transform-origin: left;
+    transform: scaleX(0);
+    animation: rs-health-progress 12s linear forwards;
+  }
+  @keyframes rs-health-progress {
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
+  }
 
   /* ============================ Cards (home view) ===================== */
   .grid {

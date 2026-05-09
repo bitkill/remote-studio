@@ -32,6 +32,7 @@ async def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_test_action)
     websocket_api.async_register_command(hass, ws_trigger_button)
     websocket_api.async_register_command(hass, ws_subscribe_events)
+    websocket_api.async_register_command(hass, ws_enable_entities)
 
 
 def _serialise_definition(definition: RemoteDefinition) -> dict[str, Any]:
@@ -193,6 +194,39 @@ def _trigger_references_device(
             return True
 
     return False
+
+
+def _disabled_required_entities(
+    hass: HomeAssistant, device_id: str, definition
+) -> list[dict[str, Any]]:
+    """Return entities the layout depends on but HA has disabled.
+
+    Currently the only "required" class is matter `current_switch_position`
+    sensors (used by matter_position sources for low-latency rotation /
+    press dispatch). The matter integration ships those disabled so we
+    surface them in a warning + offer a one-click fix in the panel.
+    """
+    out: list[dict[str, Any]] = []
+    has_mp = getattr(definition, "has_matter_position", False)
+    if not has_mp:
+        return out
+    entity_reg = er.async_get(hass)
+    for entry in er.async_entries_for_device(
+        entity_reg, device_id, include_disabled_entities=True
+    ):
+        if (
+            entry.domain == "sensor"
+            and entry.platform == "matter"
+            and "current_switch_position" in (entry.entity_id or "")
+            and entry.disabled_by is not None
+        ):
+            out.append(
+                {
+                    "entity_id": entry.entity_id,
+                    "kind": "matter_position",
+                }
+            )
+    return out
 
 
 def _entity_targets_for(store, device_id: str) -> list[str]:
@@ -426,6 +460,11 @@ async def ws_get_remote(
             "overrides": device_cfg.get("overrides", {}),
             "battery": battery,
             "automations": _automations_for_device(hass, device_id),
+            "health": {
+                "disabled_entities": _disabled_required_entities(
+                    hass, device_id, definition
+                ),
+            },
         },
     )
 
@@ -617,3 +656,54 @@ def ws_subscribe_events(
         hass, SIGNAL_REMOTE_EVENT, forward
     )
     connection.send_result(sub_id)
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "remote_studio/enable_entities",
+        vol.Required("entity_ids"): [str],
+    }
+)
+@websocket_api.async_response
+async def ws_enable_entities(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Flip ``disabled_by`` to None on each listed entity.
+
+    Used by the device-view "Enable N sensors" button to flip on the
+    matter `current_switch_position` sensors that the layout's
+    matter_position source depends on. After updating the registry we
+    ask the runtime to re-discover its matter_position subscriptions
+    so the freshly-enabled entities are picked up without a HA
+    restart.
+    """
+    from .runtime import async_get_runtime  # local import to avoid cycle
+
+    entity_reg = er.async_get(hass)
+    enabled: list[str] = []
+    failed: list[dict[str, str]] = []
+    for entity_id in msg["entity_ids"]:
+        try:
+            entity_reg.async_update_entity(entity_id, disabled_by=None)
+            enabled.append(entity_id)
+        except Exception as err:  # noqa: BLE001 — surface to UI
+            failed.append({"entity_id": entity_id, "error": str(err)})
+
+    # Re-run the matter_position discovery so the runtime starts
+    # listening to the newly-enabled sensors. The setup is idempotent —
+    # it tears down its previous subscription before reattaching.
+    if enabled:
+        try:
+            runtime = await async_get_runtime(hass)
+            runtime.resync_matter_position()
+        except Exception:  # noqa: BLE001 — log but don't fail the WS call
+            import logging
+            logging.getLogger(__name__).exception(
+                "matter_position resync failed after enabling entities"
+            )
+
+    connection.send_result(
+        msg["id"], {"ok": True, "enabled": enabled, "failed": failed}
+    )

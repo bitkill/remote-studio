@@ -9,6 +9,7 @@
 import {
   DEFAULT_DIM_STEP,
   PANEL_BASE,
+  WS_ENABLE_ENTITIES,
   WS_GET,
   WS_LIST,
   WS_SET_GROUP,
@@ -488,7 +489,76 @@ export class RemoteStudioPanel extends HTMLElement {
       this._wireSvg();
       this._wireGroupCards();
       this._wireButtonList();
+      this._wireHealthFix();
     }
+  }
+
+  _wireHealthFix() {
+    const root = this.shadowRoot;
+    const btn = root?.querySelector("[data-enable-entities]");
+    if (!btn) return;
+    btn.addEventListener("click", () => this._enableDisabledEntities(btn));
+  }
+
+  async _enableDisabledEntities(btn) {
+    const disabled = this._currentRemote?.health?.disabled_entities || [];
+    if (!disabled.length) return;
+    const ids = disabled.map((d) => d.entity_id);
+    const banner = btn.closest(".health-warning");
+
+    btn.disabled = true;
+    btn.textContent = "Enabling…";
+
+    let result;
+    try {
+      result = await this._hass.connection.sendMessagePromise({
+        type: WS_ENABLE_ENTITIES,
+        entity_ids: ids,
+      });
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = `Enable ${ids.length} sensor${ids.length === 1 ? "" : "s"}`;
+      this._showToast(
+        `Couldn't enable: ${(err && (err.message || err.code)) || "error"}`,
+      );
+      return;
+    }
+
+    const failedCount = (result?.failed || []).length;
+    const enabledCount = (result?.enabled || ids).length;
+    // Switch the banner into a "warming up" state and keep it visible
+    // for the matter integration's bring-up window — clearing the
+    // warning the moment the WS call returns would mislead the user
+    // into thinking rotation is live, when in reality the sensors take
+    // a few seconds to start polling.
+    if (banner) {
+      banner.classList.add("is-success");
+      const body = banner.querySelector(".warning-body");
+      if (body) {
+        const lead = failedCount
+          ? `Enabled ${enabledCount}/${ids.length} — ${failedCount} failed`
+          : `Enabled ${enabledCount} sensor${enabledCount === 1 ? "" : "s"}`;
+        body.innerHTML = `
+          <div class="warning-lead">✓ ${escapeHtmlInline(lead)}</div>
+          <p class="hint">HA is bringing the sensors up — rotation will respond in a few seconds.</p>
+          <div class="health-progress" aria-hidden="true"><div></div></div>
+        `;
+      }
+    }
+
+    // Re-fetch the remote after the matter integration has had time
+    // to start polling. If anything is still disabled the banner will
+    // come back with the new entity list.
+    const deviceId = this._currentRemote.device.id;
+    const defId = this._currentRemote.definition.id;
+    setTimeout(() => {
+      if (
+        this._currentRemote?.device?.id === deviceId &&
+        this._currentRemote?.definition?.id === defId
+      ) {
+        this._loadRemote(deviceId, defId);
+      }
+    }, 12000);
   }
 
   _wireIndex() {
