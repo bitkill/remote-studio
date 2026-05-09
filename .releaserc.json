@@ -2,8 +2,48 @@
   "branches": ["main"],
   "tagFormat": "v${version}",
   "plugins": [
-    "@semantic-release/commit-analyzer",
-    "@semantic-release/release-notes-generator",
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "preset": "conventionalcommits",
+        "presetConfig": {
+          "types": [
+            { "type": "feat", "section": "✨ Features" },
+            { "type": "fix", "section": "🐛 Bug Fixes" },
+            { "type": "perf", "section": "⚡ Performance" },
+            { "type": "revert", "section": "⏪ Reverts" },
+            { "type": "docs", "section": "📝 Docs" },
+            { "type": "style", "section": "💄 Style", "hidden": true },
+            { "type": "refactor", "section": "♻️ Refactors", "hidden": true },
+            { "type": "test", "section": "✅ Tests", "hidden": true },
+            { "type": "build", "section": "📦 Build", "hidden": true },
+            { "type": "ci", "section": "👷 CI", "hidden": true },
+            { "type": "chore", "section": "🔧 Chores", "hidden": true }
+          ]
+        }
+      }
+    ],
+    [
+      "@semantic-release/release-notes-generator",
+      {
+        "preset": "conventionalcommits",
+        "presetConfig": {
+          "types": [
+            { "type": "feat", "section": "✨ Features" },
+            { "type": "fix", "section": "🐛 Bug Fixes" },
+            { "type": "perf", "section": "⚡ Performance" },
+            { "type": "revert", "section": "⏪ Reverts" },
+            { "type": "docs", "section": "📝 Docs" },
+            { "type": "style", "section": "💄 Style", "hidden": true },
+            { "type": "refactor", "section": "♻️ Refactors", "hidden": true },
+            { "type": "test", "section": "✅ Tests", "hidden": true },
+            { "type": "build", "section": "📦 Build", "hidden": true },
+            { "type": "ci", "section": "👷 CI", "hidden": true },
+            { "type": "chore", "section": "🔧 Chores", "hidden": true }
+          ]
+        }
+      }
+    ],
     [
       "@semantic-release/exec",
       {
