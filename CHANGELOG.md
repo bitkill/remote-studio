@@ -1,3 +1,9 @@
+## [0.22.1](https://github.com/bitkill/remote-studio/compare/v0.22.0...v0.22.1) (2026-05-09)
+
+### 🐛 Bug Fixes
+
+* **panel:** bluetooth + xiaomi_ble integration chip on the index card ([c09e40d](https://github.com/bitkill/remote-studio/commit/c09e40d37c59c12873e8840f42b3ff331cc11900))
+
 ## [0.22.0](https://github.com/bitkill/remote-studio/compare/v0.21.0...v0.22.0) (2026-05-09)
 
 ### ✨ Features
