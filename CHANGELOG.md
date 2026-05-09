@@ -1,3 +1,9 @@
+## [0.22.0](https://github.com/bitkill/remote-studio/compare/v0.21.0...v0.22.0) (2026-05-09)
+
+### ✨ Features
+
+* **panel:** scene role for long-press defaults + colour picker ([9e2cde5](https://github.com/bitkill/remote-studio/commit/9e2cde57f563fb589a859defe951d7a9dc2f5dbe)), closes [#ffd9a8](https://github.com/bitkill/remote-studio/issues/ffd9a8)
+
 # [0.21.0](https://github.com/bitkill/remote-studio/compare/v0.20.0...v0.21.0) (2026-05-09)
 
 
