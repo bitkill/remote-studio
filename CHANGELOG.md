@@ -1,3 +1,14 @@
+## [0.23.0](https://github.com/bitkill/remote-studio/compare/v0.22.1...v0.23.0) (2026-05-09)
+
+### ✨ Features
+
+* **panel:** configurable scene brightness + reset to default ([04a6860](https://github.com/bitkill/remote-studio/commit/04a686030a73980c9e33b7bf0a761a3e880c1934)), closes [#ffd9a8](https://github.com/bitkill/remote-studio/issues/ffd9a8)
+* **panel:** HA-tile-style entity pane + dim-step slider + fingerprint dedup ([2bbb50a](https://github.com/bitkill/remote-studio/commit/2bbb50af34d67940e33ce9702b9da7ab7d3d81b5))
+
+### 📝 Docs
+
+* **readme:** drop the dead 'release' state + add Yeelight YLKG07YL ([780a717](https://github.com/bitkill/remote-studio/commit/780a717c60f8e156ca59d2b9a9ea138bf1d3b054))
+
 ## [0.22.1](https://github.com/bitkill/remote-studio/compare/v0.22.0...v0.22.1) (2026-05-09)
 
 ### 🐛 Bug Fixes
