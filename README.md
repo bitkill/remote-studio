@@ -17,7 +17,7 @@ click a button on a picture of the actual remote and pick what it should do.
   the physical hardware.
 - Click a button → assign one or more actions (call a service, activate a
   scene, run a script, trigger an existing automation, full action-block).
-- Per-button states: short press, long press / hold, release, double-tap, …
+- Per-button states: short press, long press / hold, double-tap, …
 - Live indicator: the matching button pulses on screen when the physical
   remote sends an event.
 - Test mode: click a button on screen to fire its configured action.
@@ -46,6 +46,7 @@ full guide at [`docs/authoring-remotes.md`](docs/authoring-remotes.md).
 - Philips Hue Dimmer v2 (RWL022) — Z2M
 - Aqara Mini Switch (WXKG11LM) — ZHA + Z2M
 - Aqara Wireless Switch (WXKG01LM) — ZHA + Z2M
+- Yeelight Smart Dimmer (YLKG07YL / YLKG08YL) — Bluetooth (xiaomi_ble)
 
 ## Install
 
