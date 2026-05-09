@@ -1,3 +1,10 @@
+# [0.21.0](https://github.com/bitkill/remote-studio/compare/v0.20.0...v0.21.0) (2026-05-09)
+
+
+### Features
+
+* **panel:** low-latency BILRESA scroll wheel + one-click "enable sensors" ([5185033](https://github.com/bitkill/remote-studio/commit/5185033fe26809d466361e049966c496a14fe135))
+
 # [0.20.0](https://github.com/bitkill/remote-studio/compare/v0.19.0...v0.20.0) (2026-05-08)
 
 
