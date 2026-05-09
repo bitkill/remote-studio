@@ -1,7 +1,7 @@
 PY ?= /tmp/havenv/bin/python3
 HA = $(PY) scripts/ha.py
 
-.PHONY: help dev screenshot browse setup install restart wait update version logs events
+.PHONY: help dev screenshot browse setup install restart wait update version logs events check
 
 help:
 	@printf 'Common targets:\n'
@@ -20,8 +20,11 @@ help:
 	@printf '    make logs FILTER=remote_  tail HA system_log (FILTER substring matches name+msg)\n'
 	@printf '    make events DEVICE=<id>   listen for zha_event (40s by default; --event-type=… also works)\n'
 	@printf '\n'
+	@printf '  Sanity\n'
+	@printf '    make check                py_compile + voluptuous schema-check every remote yaml\n'
+	@printf '\n'
 	@printf '  Setup\n'
-	@printf '    make setup                create the venv at /tmp/havenv with websocket-client\n'
+	@printf '    make setup                create the venv at /tmp/havenv with websocket-client + voluptuous + pyyaml\n'
 
 # ---------------------------------------------------------------- frontend
 dev:
@@ -38,11 +41,14 @@ browse:
 # ---------------------------------------------------------------- HA control
 setup:
 	@if [ ! -x $(PY) ]; then \
-	  python3 -m venv /tmp/havenv && /tmp/havenv/bin/pip install -q websocket-client; \
-	  echo "venv ready at /tmp/havenv"; \
-	else \
-	  echo "venv already at /tmp/havenv"; \
+	  python3 -m venv /tmp/havenv; \
+	  echo "venv created at /tmp/havenv"; \
 	fi
+	@/tmp/havenv/bin/pip install -q websocket-client voluptuous pyyaml
+	@echo "venv ready at /tmp/havenv (websocket-client, voluptuous, pyyaml)"
+
+check:
+	@$(PY) scripts/check.py
 
 install:
 	$(HA) install
