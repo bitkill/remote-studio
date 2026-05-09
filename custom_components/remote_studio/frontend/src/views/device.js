@@ -187,10 +187,11 @@ function renderGroupCard(group) {
     ? `
         <label class="dim-step">
           <span>Dim step</span>
-          <input type="number" min="1" max="100" step="1"
+          <input type="range" min="0" max="30" step="5"
             value="${dimStep}"
-            data-dim-step="${escapeAttr(group.id)}" />
-          <small>%</small>
+            data-dim-step="${escapeAttr(group.id)}"
+            aria-label="Dim step (0-30% in 5% increments)" />
+          <output class="dim-step-value">${dimStep}%</output>
         </label>`
     : "";
   const sceneColor = rgbToHex(stored.scene_color) || "#ffd9a8";

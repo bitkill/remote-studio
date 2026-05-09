@@ -519,7 +519,7 @@ def _find_battery(hass: HomeAssistant, device_id: str) -> dict[str, Any] | None:
         # null to clear. We don't constrain the inner shape — HA's target
         # selector validates on its own when the action runs.
         vol.Optional("target"): vol.Any(None, dict),
-        vol.Optional("dim_step"): vol.All(int, vol.Range(min=1, max=100)),
+        vol.Optional("dim_step"): vol.All(int, vol.Range(min=0, max=100)),
         # rgb tuple [r, g, b], each 0-255. Used by the `scene` role
         # default (long-press → 100% brightness in this colour).
         vol.Optional("scene_color"): vol.All(

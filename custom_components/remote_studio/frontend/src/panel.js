@@ -8,6 +8,8 @@
  */
 import {
   DEFAULT_DIM_STEP,
+  DOMAIN_ICON,
+  MDI_PATHS,
   PANEL_BASE,
   WS_ENABLE_ENTITIES,
   WS_GET,
@@ -39,6 +41,86 @@ function hexToRgb(hex) {
   if (!m) return null;
   const v = parseInt(m[1], 16);
   return [(v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff];
+}
+
+// HA tile-card-style markup for the picked entity's live state.
+function entityTileTemplate(domain, state, rawValue, friendly, isOn) {
+  const isLight = domain === "light";
+  const attrs = state.attributes || {};
+
+  // Colour we use to tint the icon + (if applicable) brightness bar.
+  let stateColor;
+  if (isLight && isOn) {
+    const c = lightColour(attrs);
+    stateColor = c?.css || "rgb(255, 196, 96)";
+  } else if (isOn) {
+    stateColor = "rgb(91, 192, 122)";
+  } else if (rawValue === "off") {
+    stateColor = "rgb(160, 160, 160)";
+  } else {
+    stateColor = "var(--primary-color, #5b8def)";
+  }
+
+  // Pick the right MDI glyph for the domain + on/off variant.
+  const iconKey = (DOMAIN_ICON[domain] || {})[isOn ? "on" : "off"] || "helpDots";
+  const iconPath = MDI_PATHS[iconKey];
+  const iconSvg = iconPath
+    ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${iconPath}" /></svg>`
+    : "";
+
+  // Substate text: "On · 75%" for lights, just the state otherwise.
+  let substate = capitalise(rawValue);
+  if (isLight && isOn && Number.isFinite(attrs.brightness)) {
+    const pct = Math.round((attrs.brightness / 255) * 100);
+    substate = `On · ${pct}%`;
+  }
+
+  // Brightness bar — only shown for lights that report brightness.
+  let bar = "";
+  if (isLight && isOn && Number.isFinite(attrs.brightness)) {
+    const pct = Math.round((attrs.brightness / 255) * 100);
+    bar = `
+      <div class="state-tile-bar">
+        <div class="state-tile-bar-fill"
+             style="width: ${pct}%; background: var(--state-color);"></div>
+      </div>`;
+  }
+
+  return `
+    <div class="state-tile" style="--state-color: ${stateColor};">
+      <div class="state-tile-head">
+        <div class="state-tile-icon ${isOn ? "is-on" : "is-off"}">${iconSvg}</div>
+        <div class="state-tile-info">
+          <div class="state-tile-name" title="${escapeAttrInline(friendly)}">${escapeHtmlInline(friendly)}</div>
+          <div class="state-tile-substate">${escapeHtmlInline(substate)}</div>
+        </div>
+      </div>
+      ${bar}
+    </div>
+  `;
+}
+
+// JSON hash of the entity-state fields the tile actually renders. Used
+// to skip DOM updates when subscribe_trigger fires for an attribute
+// change we don't care about (last_seen, signal_strength, …).
+function entityFingerprint(state) {
+  if (!state) return "";
+  const a = state.attributes || {};
+  return JSON.stringify({
+    s: state.state,
+    b: a.brightness,
+    rgb: a.rgb_color,
+    ctk: a.color_temp_kelvin,
+    ct: a.color_temp,
+    hs: a.hs_color,
+    fn: a.friendly_name,
+  });
+}
+
+function capitalise(s) {
+  if (!s) return "";
+  const str = String(s);
+  return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 function pickEntityIdFromTarget(target) {
@@ -156,6 +238,12 @@ export class RemoteStudioPanel extends HTMLElement {
     // when HA hasn't pushed a new `hass` property to the panel yet.
     this._entitySubs = new Map(); // entityId -> unsubFn
     this._entityStates = new Map(); // entityId -> ha state obj
+    // Fingerprint of the last *rendered* state per entity. The
+    // subscribe_trigger callback fires on every attribute change
+    // (including ones we don't display, e.g. last_seen timestamps),
+    // so we hash the fields we actually render and skip the DOM
+    // update when nothing visible has changed.
+    this._entityFingerprints = new Map();
 
     this._filterText = "";
     this._eventLog = [];
@@ -200,6 +288,7 @@ export class RemoteStudioPanel extends HTMLElement {
     }
     this._entitySubs.clear();
     this._entityStates.clear();
+    this._entityFingerprints.clear();
   }
 
   // ============================================================ HA props
@@ -639,13 +728,17 @@ export class RemoteStudioPanel extends HTMLElement {
     });
     this._refreshStatePanes();
     root.querySelectorAll("[data-dim-step]").forEach((input) => {
-      input.addEventListener("change", (e) => {
+      // `input` fires while dragging the slider (every value change); the
+      // visible output and the local cache update live, but the WS save
+      // is debounced through _scheduleGroupSave.
+      input.addEventListener("input", (e) => {
         const groupId = e.target.dataset.dimStep;
         const raw = parseInt(e.target.value, 10);
-        const dimStep = Number.isFinite(raw) && raw >= 1 && raw <= 100
+        const dimStep = Number.isFinite(raw) && raw >= 0 && raw <= 100
           ? raw
           : DEFAULT_DIM_STEP;
-        e.target.value = String(dimStep);
+        const out = e.target.parentElement?.querySelector(".dim-step-value");
+        if (out) out.textContent = `${dimStep}%`;
         this._onDimStepChange(groupId, dimStep);
       });
     });
@@ -661,8 +754,11 @@ export class RemoteStudioPanel extends HTMLElement {
   }
 
   _syncTargetPickerHass() {
-    // Re-render entity options when hass updates (e.g. a new entity was
-    // added). Cheap because we only touch the open popover.
+    // Refresh the open entity-picker popover so newly registered
+    // entities show up in the search list. The state tile is fed by
+    // its own per-entity subscription — we don't re-render it here,
+    // because hass changes for unrelated entities would otherwise
+    // trigger a wasted DOM rebuild.
     const root = this.shadowRoot;
     if (!root) return;
     root.querySelectorAll(".entity-picker").forEach((picker) => {
@@ -672,7 +768,6 @@ export class RemoteStudioPanel extends HTMLElement {
         this._renderPickerOptions(list, input?.value || "");
       }
     });
-    this._refreshStatePanes();
   }
 
   // Right-side info card next to each group's picker. Reads the picked
@@ -692,14 +787,25 @@ export class RemoteStudioPanel extends HTMLElement {
     });
   }
 
+  // Right-column "tile" — modeled on Lovelace's tile-card so it slots
+  // into the panel without looking like a foreign element. Layout:
+  //
+  //   ┌──────────────────────────────────┐
+  //   │  ⌬   Friendly name               │
+  //   │      On · 75%                    │
+  //   │  ────────────────────────────    │
+  //   └──────────────────────────────────┘
+  //
+  // - icon is colour-tinted to the entity's state colour (light's own
+  //   rgb_color when on; muted gray when off)
+  // - the tinted bar at the bottom shows brightness for lights
+  // - colour and bar fill share the same CSS variable so the tint stays
+  //   consistent
   _renderEntityStatePane(pane, entityId) {
     if (!entityId) {
       pane.innerHTML = `<div class="state-empty">No entity picked</div>`;
       return;
     }
-    // Prefer our live cache (kept fresh via subscribe_trigger) over
-    // the panel's hass snapshot, which HA only refreshes on coarse
-    // events.
     const state =
       this._entityStates.get(entityId) || this._hass?.states?.[entityId];
     if (!state) {
@@ -712,45 +818,12 @@ export class RemoteStudioPanel extends HTMLElement {
     const friendly = state.attributes?.friendly_name || entityId;
     const isOn = value === "on";
 
-    const stateClass = isOn ? "is-on" : value === "off" ? "is-off" : "is-other";
-    const pill = `<span class="state-pill ${stateClass}">${escapeHtmlInline(value)}</span>`;
-
-    if (domain === "light") {
-      const attrs = state.attributes || {};
-      const brightness = attrs.brightness;
-      const brightnessPct = Number.isFinite(brightness)
-        ? Math.round((brightness / 255) * 100)
-        : null;
-      const colour = lightColour(attrs);
-      const swatch = colour
-        ? `<span class="state-swatch ${isOn ? "" : "is-off"}"
-              style="background: ${colour.css}"
-              title="${escapeAttrInline(colour.title)}"></span>`
-        : "";
-      const brightnessRow =
-        isOn && brightnessPct !== null
-          ? `
-            <div class="state-row-bar">
-              <div class="state-row-label">Brightness</div>
-              <div class="state-bar"><div class="state-bar-fill" style="width: ${brightnessPct}%"></div></div>
-              <div class="state-row-num">${brightnessPct}%</div>
-            </div>`
-          : "";
-      pane.innerHTML = `
-        <div class="state-head">
-          ${pill}
-          ${swatch}
-        </div>
-        ${brightnessRow}
-        <div class="state-friendly">${escapeHtmlInline(friendly)}</div>
-      `;
-      return;
-    }
-
-    pane.innerHTML = `
-      <div class="state-head">${pill}</div>
-      <div class="state-friendly">${escapeHtmlInline(friendly)}</div>
-    `;
+    const tile = entityTileTemplate(domain, state, value, friendly, isOn);
+    pane.innerHTML = tile;
+    // Record the fingerprint of what we just drew so the next
+    // subscribe_trigger event can short-circuit when nothing visible
+    // has changed.
+    this._entityFingerprints.set(entityId, entityFingerprint(state));
   }
 
   // Build a self-contained entity picker into `slot`. Saves on selection
@@ -951,6 +1024,7 @@ export class RemoteStudioPanel extends HTMLElement {
         try { unsub(); } catch (_) { /* noop */ }
         this._entitySubs.delete(eid);
         this._entityStates.delete(eid);
+        this._entityFingerprints.delete(eid);
       }
     }
     // Open subscriptions for new entities.
@@ -981,6 +1055,13 @@ export class RemoteStudioPanel extends HTMLElement {
     const newState = msg?.variables?.trigger?.to_state;
     if (!newState) return;
     this._entityStates.set(entityId, newState);
+    // Skip the DOM update when nothing user-visible has changed —
+    // state-trigger fires on every attribute mutation (including
+    // last_seen / battery diff), but the tile only cares about state +
+    // brightness + colour fields.
+    const fp = entityFingerprint(newState);
+    if (this._entityFingerprints.get(entityId) === fp) return;
+    this._entityFingerprints.set(entityId, fp);
     // Update only the panes targeting this entity — cheap, doesn't
     // disturb popovers or focus elsewhere on the page.
     const root = this.shadowRoot;
