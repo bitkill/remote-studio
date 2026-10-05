@@ -32,7 +32,7 @@ from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.script import Script
 
 from .const import DOMAIN
-from .core import events as ev
+from .core import actions as act, events as ev
 from .core.definitions import RemoteDefinition
 from .core.events import RemoteEvent
 from .registry import DefinitionRegistry, async_get_registry
@@ -44,74 +44,6 @@ SIGNAL_REMOTE_EVENT = f"{DOMAIN}:remote_event"
 
 Emit = Callable[[RemoteEvent], None]
 DefsForDevice = Callable[[str], list[RemoteDefinition]]
-
-
-def resolve_actions(
-    definition: RemoteDefinition,
-    store: MappingStore,
-    device_id: str,
-    button_id: str,
-    state_id: str,
-) -> list[dict[str, Any]]:
-    """Decide which action list a (button, state) should fire.
-
-    Resolution order:
-      1. user override (Advanced editor) — wins if present.
-      2. role-based default — built from the group's config.
-      3. nothing — returns [].
-    """
-    override = store.override(device_id, button_id, state_id)
-    if override:
-        return override
-    role = definition.role_for(button_id, state_id)
-    if role == "none":
-        return []
-    group = store.group(device_id, definition.group_for(button_id))
-    target = group.target
-    if not target:
-        return []
-    dim_step = group.dim_step
-
-    if role == "turn_on":
-        return [{"service": "homeassistant.turn_on", "target": target}]
-    if role == "turn_off":
-        return [{"service": "homeassistant.turn_off", "target": target}]
-    if role == "toggle":
-        return [{"service": "homeassistant.toggle", "target": target}]
-    if role == "dim_up":
-        return [
-            {
-                "service": "light.turn_on",
-                "target": target,
-                "data": {"brightness_step_pct": dim_step, "transition": 0.3},
-            }
-        ]
-    if role == "dim_down":
-        return [
-            {
-                "service": "light.turn_on",
-                "target": target,
-                "data": {"brightness_step_pct": -dim_step, "transition": 0.3},
-            }
-        ]
-    if role == "scene":
-        # Group's scene brightness, in the user's chosen colour if any
-        # (no colour by default). Lights without colour support drop the
-        # rgb_color key — HA logs a warning but applies the brightness.
-        data: dict[str, Any] = {
-            "brightness_pct": group.scene_brightness,
-            "transition": 0.5,
-        }
-        if group.scene_color is not None:
-            data["rgb_color"] = list(group.scene_color)
-        return [
-            {
-                "service": "light.turn_on",
-                "target": target,
-                "data": data,
-            }
-        ]
-    return []
 
 
 # ================================================================== adapters
@@ -321,6 +253,30 @@ ADAPTERS: tuple[type[SourceAdapter], ...] = (
 )
 
 
+# ================================================================== executor
+class ActionError(Exception):
+    """An action list failed validation or execution."""
+
+
+class ActionRunner:
+    """Runs action lists through HA's Script helper. The one place that
+    knows about SCRIPT_SCHEMA and Script; raises ActionError on failure."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self._hass = hass
+
+    async def run(self, steps: list[dict[str, Any]], name: str, context: Context) -> None:
+        try:
+            # SCRIPT_SCHEMA normalises raw service-call dicts into the
+            # structure Script expects; without it the engine trips its
+            # 'service_template' fallback at execution time.
+            sequence = SCRIPT_SCHEMA(steps)
+            script = Script(self._hass, sequence, f"Remote Studio {name}", DOMAIN)
+            await script.async_run(context=context)
+        except Exception as err:  # noqa: BLE001 — any user action failure
+            raise ActionError(str(err)) from err
+
+
 # =================================================================== runtime
 class EventRuntime:
     """Owns the source adapters and dispatches matched events to actions."""
@@ -329,6 +285,7 @@ class EventRuntime:
         self._hass = hass
         self._store: MappingStore | None = None
         self._registry: DefinitionRegistry | None = None
+        self.runner = ActionRunner(hass)
         self._adapters: list[SourceAdapter] = [
             cls(hass, self.definitions_for) for cls in ADAPTERS
         ]
@@ -368,6 +325,21 @@ class EventRuntime:
                 out.append(d)
         return out
 
+    # ------------------------------------------------------------ actions
+    def resolve(
+        self, definition: RemoteDefinition, device_id: str, button_id: str, state_id: str
+    ) -> list[dict[str, Any]]:
+        """Action list for a (button, state): override, else role default."""
+        if self._store is None:
+            return []
+        return act.resolve(
+            definition,
+            button_id,
+            state_id,
+            self._store.group(device_id, definition.group_for(button_id)),
+            self._store.override(device_id, button_id, state_id),
+        )
+
     # ----------------------------------------------------------- dispatch
     @callback
     def _on_event(self, event: RemoteEvent) -> None:
@@ -378,42 +350,20 @@ class EventRuntime:
         async_dispatcher_send(
             self._hass, SIGNAL_REMOTE_EVENT, event.device_id, button_id, state_id
         )
-        if self._store is None:
+        steps = self.resolve(definition, event.device_id, button_id, state_id)
+        if not steps:
             return
-        actions = resolve_actions(
-            definition, self._store, event.device_id, button_id, state_id
-        )
-        if not actions:
-            return
+        name = f"{event.device_id}/{button_id}/{state_id}"
         self._hass.async_create_task(
-            self._run_actions(event.device_id, button_id, state_id, actions),
+            self._run_logged(steps, name),
             f"remote_studio_run_{event.device_id}_{button_id}_{state_id}",
         )
 
-    async def _run_actions(
-        self,
-        device_id: str,
-        button_id: str,
-        state_id: str,
-        actions: list[dict[str, Any]],
-    ) -> None:
+    async def _run_logged(self, steps: list[dict[str, Any]], name: str) -> None:
         try:
-            # Pass through HA's script schema so we end up with the same
-            # validated structure HA's automation engine uses — without
-            # this, raw service-call dicts trip the engine's
-            # 'service_template' fallback at execution time.
-            sequence = SCRIPT_SCHEMA(actions)
-            script = Script(
-                self._hass,
-                sequence,
-                f"Remote Studio {device_id}/{button_id}/{state_id}",
-                DOMAIN,
-            )
-            await script.async_run(context=Context())
-        except Exception:  # noqa: BLE001 — surface any user action failure
-            _LOGGER.exception(
-                "Action execution failed for %s/%s/%s", device_id, button_id, state_id
-            )
+            await self.runner.run(steps, name, Context())
+        except ActionError as err:
+            _LOGGER.error("Action execution failed for %s: %s", name, err)
 
 
 async def async_get_runtime(hass: HomeAssistant) -> EventRuntime:

@@ -12,14 +12,12 @@ from homeassistant.helpers import (
     device_registry as dr,
     entity_registry as er,
 )
-from homeassistant.helpers.config_validation import SCRIPT_SCHEMA
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.script import Script
 from homeassistant.loader import async_get_integration
 
 from .const import DOMAIN
 from .registry import RemoteDefinition, async_get_registry
-from .runtime import SIGNAL_REMOTE_EVENT, async_get_runtime, resolve_actions
+from .runtime import SIGNAL_REMOTE_EVENT, ActionError, async_get_runtime
 from .storage import GroupConfig, async_get_store
 
 
@@ -569,27 +567,15 @@ async def ws_trigger_button(
         connection.send_error(msg["id"], "no_definition", "No matching layout")
         return
     definition = candidates[0]
-    store = await async_get_store(hass)
-    actions = resolve_actions(
-        definition,
-        store,
-        msg["device_id"],
-        msg["button_id"],
-        msg["state_id"],
-    )
-    if not actions:
+    steps = runtime.resolve(definition, msg["device_id"], msg["button_id"], msg["state_id"])
+    if not steps:
         connection.send_result(msg["id"], {"ok": True, "fired": False})
         return
     try:
-        sequence = SCRIPT_SCHEMA(actions)
-        script = Script(
-            hass,
-            sequence,
-            f"Remote Studio (test {msg['button_id']}/{msg['state_id']})",
-            DOMAIN,
+        await runtime.runner.run(
+            steps, f"(test {msg['button_id']}/{msg['state_id']})", _ws_context(connection)
         )
-        await script.async_run(context=_ws_context(connection))
-    except Exception as err:  # noqa: BLE001 — surface to UI
+    except ActionError as err:
         connection.send_error(msg["id"], "action_failed", str(err))
         return
     connection.send_result(msg["id"], {"ok": True, "fired": True})
@@ -607,11 +593,10 @@ async def ws_test_action(
     connection: websocket_api.ActiveConnection,
     msg: dict[str, Any],
 ) -> None:
+    runtime = await async_get_runtime(hass)
     try:
-        sequence = SCRIPT_SCHEMA(msg["actions"])
-        script = Script(hass, sequence, "Remote Studio (test)", DOMAIN)
-        await script.async_run(context=_ws_context(connection))
-    except Exception as err:  # noqa: BLE001 — surface error to UI
+        await runtime.runner.run(msg["actions"], "(test)", _ws_context(connection))
+    except ActionError as err:
         connection.send_error(msg["id"], "action_failed", str(err))
         return
     connection.send_result(msg["id"], {"ok": True})

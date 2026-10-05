@@ -26,7 +26,7 @@ Home Assistant **custom integration** at `custom_components/remote_studio/` that
 ## Traps we've already hit (don't pay for them again)
 
 - **YAML 1.1 booleans (the Norway problem).** Unquoted `id: on` / `id: off` parses as `True` / `False`. Always quote button IDs: `id: "on"`. Same for `"off"`, `"yes"`, `"no"`.
-- **HA Script helper needs SCRIPT_SCHEMA.** Don't hand a raw action-list dict to `Script(...)` — validate via `homeassistant.helpers.config_validation.SCRIPT_SCHEMA` first, or you get cryptic `'service_template'` KeyErrors at execution. And pass `context=Context()`, never `None`.
+- **HA Script helper needs SCRIPT_SCHEMA.** Don't hand a raw action-list dict to `Script(...)` — validate via `homeassistant.helpers.config_validation.SCRIPT_SCHEMA` first, or you get cryptic `'service_template'` KeyErrors at execution. And pass `context=Context()`, never `None`. This lives in exactly one place: `runtime.ActionRunner.run`. Call it; don't build Scripts elsewhere.
 - **HassKey ≠ string.** `hass.data.get("automation")` returns `None` because the key is a `HassKey`, not the string `"automation"`. Import the canonical key (e.g. `from homeassistant.components.automation import DATA_COMPONENT`).
 - **HA's `Store` calls `_async_migrate_func` on *minor* bumps too.** Returning `{}` there wipes user data. The decision lives in `core/mappings.py:migrate` — keep it tested.
 - **Adding a source = one adapter + one schema entry.** Subclass `SourceAdapter` (or `EntityStateAdapter` for entity-backed sources) in `runtime.py`, add the signature schema to `core/definitions.py`, put the pure decoding in `core/events.py` with a test. Nothing else should need to know the source exists.
@@ -42,8 +42,8 @@ No Python changes needed. Use `make events` to capture real signatures off the u
 
 ## Backend layout
 
-- `core/` — HA-free (see `docs/adr/0001-ha-free-core.md`): `definitions.py` (schema, `build()`, `match(source, payload)`, `find_for_device()`), `events.py` (`RemoteEvent`, `match_event()`, per-source decoders), `mappings.py` (`GroupConfig`, `MappingData`, migration). Tested in `tests/`.
-- HA-side glue: `registry.py` (loads YAML, caches), `storage.py` (HA Store), `runtime.py` (one `SourceAdapter` per integration emitting `RemoteEvent`s, `definitions_for(device_id)` = pairing first then auto-match, dispatch → actions), `api.py` (websocket commands), `panel.py` (sidebar registration).
+- `core/` — HA-free (see `docs/adr/0001-ha-free-core.md`): `definitions.py` (schema, `build()`, `match(source, payload)`, `find_for_device()`), `events.py` (`RemoteEvent`, `match_event()`, per-source decoders), `mappings.py` (`GroupConfig`, `MappingData`, migration), `actions.py` (`resolve()`: override → role default → nothing). Tested in `tests/`.
+- HA-side glue: `registry.py` (loads YAML, caches), `storage.py` (HA Store), `runtime.py` (one `SourceAdapter` per integration emitting `RemoteEvent`s, `definitions_for(device_id)` = pairing first then auto-match, dispatch → `core.actions.resolve` → `ActionRunner.run`, the only place SCRIPT_SCHEMA/Script are used), `api.py` (websocket commands), `panel.py` (sidebar registration).
 - Domain words are in `GLOSSARY.md`; use them in code and docs.
 
 ## Frontend layout
