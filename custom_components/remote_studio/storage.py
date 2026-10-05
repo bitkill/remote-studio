@@ -35,10 +35,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN
+from .core import mappings
 
 _LOGGER = logging.getLogger(__name__)
 
-STORAGE_VERSION = 2
+STORAGE_VERSION = mappings.STORAGE_VERSION
+STORAGE_MINOR_VERSION = mappings.STORAGE_MINOR_VERSION
 STORAGE_KEY = f"{DOMAIN}.mappings"
 DEFAULT_DIM_STEP = 20
 # Warm-white default for the `scene` long-press role. Matches the
@@ -61,15 +63,16 @@ def _empty_group() -> GroupConfig:
 
 
 class _RemoteStudioStore(Store[StoreData]):
-    """Subclass so we can hook the v1 → v2 migration.
+    """Subclass so we can hook schema migration.
 
-    Pre-1.0 schema stored ``{<device>: {<button>: {<state>: [actions]}}}``.
-    The new shape doesn't have a one-to-one mapping for that data and we
-    have no real users yet — wipe and let people re-pick targets.
+    HA calls ``_async_migrate_func`` whenever the stored (major, minor)
+    differs from ours — including minor bumps, which only ever add
+    optional fields. The decision of what to keep lives in
+    ``core.mappings.migrate`` so it is tested without HA.
     """
 
     async def _async_migrate_func(
-        self, old_major_version: int, _old_minor_version: int, _old_data: Any
+        self, old_major_version: int, old_minor_version: int, old_data: Any
     ) -> StoreData:
         if old_major_version < STORAGE_VERSION:
             _LOGGER.warning(
@@ -77,7 +80,7 @@ class _RemoteStudioStore(Store[StoreData]):
                 "Re-pick targets for each remote in the panel.",
                 old_major_version,
             )
-        return {}
+        return mappings.migrate(old_major_version, old_minor_version, old_data)
 
 
 class MappingStore:
@@ -88,7 +91,7 @@ class MappingStore:
             hass,
             STORAGE_VERSION,
             STORAGE_KEY,
-            minor_version=1,
+            minor_version=STORAGE_MINOR_VERSION,
             atomic_writes=True,
         )
         self._data: StoreData = {}
