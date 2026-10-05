@@ -1,3 +1,14 @@
+## [0.24.0](https://github.com/bitkill/remote-studio/compare/v0.23.0...v0.24.0) (2026-10-05)
+
+### ✨ Features
+
+* **panel:** use hass-subpage for the page header ([78ff638](https://github.com/bitkill/remote-studio/commit/78ff6389a6800d9f771998a61155eb94cd57d673))
+
+### 🐛 Bug Fixes
+
+* **panel:** make manual pairing real, and check in CI ([f423efb](https://github.com/bitkill/remote-studio/commit/f423efb3101e9954aef0bae0158c09fd2b60fde0)), closes [#wheel](https://github.com/bitkill/remote-studio/issues/wheel)
+* **storage:** preserve data on minor schema bumps ([7718452](https://github.com/bitkill/remote-studio/commit/771845296a386e6b58c6327d5fa3bcb5a08bb730))
+
 ## [0.23.0](https://github.com/bitkill/remote-studio/compare/v0.22.1...v0.23.0) (2026-05-09)
 
 ### ✨ Features
