@@ -8,7 +8,7 @@ Passes:
    ``core.definitions.build`` (schema, duplicate ids, signature
    collisions), confirm the SVG sibling exists and has a hotspot for
    every button, and flag duplicate definition ids across files.
-3. Tests — ``pytest`` on ``tests/``.
+3. Tests — ``pytest`` on ``tests/`` and ``node --test`` on ``tests/frontend/``.
 
 Run:  make check
 """
@@ -102,10 +102,25 @@ def _run_tests() -> bool:
     return ok
 
 
+def _run_node_tests() -> bool:
+    print("→ running frontend tests …")
+    try:
+        result = subprocess.run(
+            ["node", "--test", "tests/frontend/**/*.test.mjs"], cwd=ROOT, check=False
+        )
+    except FileNotFoundError:
+        print("✗ node not found")
+        return False
+    ok = result.returncode == 0
+    print("✓ frontend tests pass" if ok else "✗ frontend tests failed")
+    return ok
+
+
 def main() -> int:
     ok = _compile_python()
     ok = _check_definitions() and ok
     ok = _run_tests() and ok
+    ok = _run_node_tests() and ok
     return 0 if ok else 1
 
 

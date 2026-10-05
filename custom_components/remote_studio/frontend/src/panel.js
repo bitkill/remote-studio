@@ -20,18 +20,9 @@ import {
   WS_TRIGGER,
   actionTemplate,
 } from "./constants.js";
-import { cssEscape } from "./helpers.js";
+import { cssEscape, escapeAttr, escapeHtml } from "./helpers.js";
 import { css } from "./styles.js";
 
-// Tiny inline escapers — duplicated from helpers.js to keep the picker
-// self-contained without a new import cycle.
-function escapeHtmlInline(value) {
-  if (value === null || value === undefined) return "";
-  return String(value).replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
-  );
-}
-const escapeAttrInline = escapeHtmlInline;
 
 // "#rrggbb" -> [r, g, b], or null if the input is malformed.
 function hexToRgb(hex) {
@@ -90,8 +81,8 @@ function entityTileTemplate(domain, state, rawValue, friendly, isOn) {
       <div class="state-tile-head">
         <div class="state-tile-icon ${isOn ? "is-on" : "is-off"}">${iconSvg}</div>
         <div class="state-tile-info">
-          <div class="state-tile-name" title="${escapeAttrInline(friendly)}">${escapeHtmlInline(friendly)}</div>
-          <div class="state-tile-substate">${escapeHtmlInline(substate)}</div>
+          <div class="state-tile-name" title="${escapeAttr(friendly)}">${escapeHtml(friendly)}</div>
+          <div class="state-tile-substate">${escapeHtml(substate)}</div>
         </div>
       </div>
       ${bar}
@@ -200,7 +191,7 @@ function kelvinToRgb(kelvin) {
   return `rgb(${clamp(r)}, ${clamp(g)}, ${clamp(b)})`;
 }
 import { renderDevice, renderRemoteSideContent } from "./views/device.js";
-import { renderEditor } from "./views/editor.js";
+import { renderStateRow } from "./views/state-row.js";
 import { renderIndex } from "./views/index.js";
 import { renderEventListItems } from "./views/log.js";
 
@@ -656,7 +647,7 @@ export class RemoteStudioPanel extends HTMLElement {
           ? `Enabled ${enabledCount}/${ids.length} — ${failedCount} failed`
           : `Enabled ${enabledCount} sensor${enabledCount === 1 ? "" : "s"}`;
         body.innerHTML = `
-          <div class="warning-lead">✓ ${escapeHtmlInline(lead)}</div>
+          <div class="warning-lead">✓ ${escapeHtml(lead)}</div>
           <p class="hint">HA is bringing the sensors up — rotation will respond in a few seconds.</p>
           <div class="health-progress" aria-hidden="true"><div></div></div>
         `;
@@ -1000,9 +991,9 @@ export class RemoteStudioPanel extends HTMLElement {
     listEl.innerHTML = top
       .map(
         (m) => `
-          <li data-entity-id="${escapeAttrInline(m.id)}">
-            <span class="entity-friendly">${escapeHtmlInline(m.friendly)}</span>
-            <span class="entity-id">${escapeHtmlInline(m.id)}</span>
+          <li data-entity-id="${escapeAttr(m.id)}">
+            <span class="entity-friendly">${escapeHtml(m.friendly)}</span>
+            <span class="entity-id">${escapeHtml(m.id)}</span>
           </li>`,
       )
       .join("");
@@ -1220,95 +1211,31 @@ export class RemoteStudioPanel extends HTMLElement {
   }
 
   _refreshStateRows() {
-    // The Summary text in each state row depends on the group's target +
-    // dim_step. Re-render the side panel without touching the SVG / picker.
+    // A group-card change (target, dim step, scene) changes the summary
+    // in each state row. Re-render just those rows from the shared
+    // template so the picker keeps focus and the text can't drift from
+    // the full render.
     const root = this.shadowRoot;
     const aside = root?.querySelector(".remote-side");
     if (!aside) return;
-    // Cheapest correct option: full re-render. The picker survives because
-    // it's a property-driven component but losing focus inside its dialog
-    // would be jarring — so we *don't* fully re-render. Instead, replace
-    // each state row's summary by recomputing.
     const def = this._currentRemote?.definition;
     const button = def?.buttons?.find((b) => b.id === this._selectedButtonId);
     if (!button) return;
     const groupCfg = this._group(button.group);
-    const dimStep = groupCfg.dim_step;
-    const target = groupCfg.target;
-    const sceneColor = groupCfg.scene_color;
-    const sceneBrightness = groupCfg.scene_brightness;
+    const overrides = this._currentRemote?.overrides?.[button.id] || {};
+    const tpl = document.createElement("template");
     button.states.forEach((state) => {
       const row = aside.querySelector(
         `.state-row[data-state-id="${cssEscape(state.id)}"]`,
       );
       if (!row) return;
-      const summaryEl = row.querySelector(".state-summary");
-      if (!summaryEl) return;
-      const override =
-        this._currentRemote?.overrides?.[button.id]?.[state.id];
-      const hasOverride = Array.isArray(override) && override.length > 0;
-      let text;
-      let cls = "default";
-      if (hasOverride) {
-        text = `Override · ${this._describeActionsShort(override)}`;
-        cls = "override";
-      } else if (state.role === "none") {
-        text = "Unbound";
-        cls = "muted";
-      } else if (!target) {
-        text = "Pick a target above";
-        cls = "muted";
-      } else {
-        text = `Default · ${this._describeRole(state.role, target, dimStep, sceneColor, sceneBrightness)}`;
-      }
-      summaryEl.className = `state-summary ${cls}`;
-      summaryEl.textContent = text;
+      tpl.innerHTML = renderStateRow(
+        state, groupCfg, overrides[state.id], state.id === this._selectedStateId,
+      );
+      const fresh = tpl.content.firstElementChild;
+      fresh.addEventListener("click", () => this._selectState(state.id));
+      row.replaceWith(fresh);
     });
-  }
-
-  _describeActionsShort(actions) {
-    if (!Array.isArray(actions) || actions.length === 0) return "Not configured";
-    if (actions.length === 1) {
-      const a = actions[0];
-      if (a.service) return `Call ${a.service}`;
-      if (a.scene) return `Activate scene ${a.scene}`;
-      if (a.delay) return "Delay";
-      return "Custom action";
-    }
-    return `${actions.length} steps`;
-  }
-
-  _describeRole(role, target, dimStep, sceneColor, sceneBrightness) {
-    const t = this._describeTargetShort(target);
-    switch (role) {
-      case "turn_on": return `Turn on ${t}`;
-      case "turn_off": return `Turn off ${t}`;
-      case "toggle": return `Toggle ${t}`;
-      case "dim_up": return `Brighten ${t} (+${dimStep}%)`;
-      case "dim_down": return `Dim ${t} (-${dimStep}%)`;
-      case "scene": {
-        const pct = Number.isFinite(sceneBrightness) ? sceneBrightness : 100;
-        if (Array.isArray(sceneColor) && sceneColor.length === 3) {
-          const [r, g, b] = sceneColor;
-          const hex = `#${[r, g, b]
-            .map((v) => Math.max(0, Math.min(255, v | 0)).toString(16).padStart(2, "0"))
-            .join("")}`;
-          return `Scene on ${t} (${pct}% @ ${hex})`;
-        }
-        return `Scene on ${t} (${pct}%)`;
-      }
-      default: return "Unbound";
-    }
-  }
-
-  _describeTargetShort(target) {
-    if (!target || typeof target !== "object") return "";
-    if (target.entity_id) {
-      return Array.isArray(target.entity_id) ? target.entity_id[0] : target.entity_id;
-    }
-    if (target.device_id) return "device";
-    if (target.area_id) return "area";
-    return "";
   }
 
   // ----------- buttons / states / advanced editor
@@ -1631,16 +1558,22 @@ export class RemoteStudioPanel extends HTMLElement {
     return lookup;
   }
 
+  // Toast is a persistent element toggled in place — never a full
+  // re-render, which would destroy the entity picker's open state.
   _showToast(message) {
     this._toast = message;
+    const el = this.shadowRoot?.querySelector("[data-toast]");
+    if (el) {
+      el.textContent = message;
+      el.classList.add("show");
+    }
     if (this._toastTimer) clearTimeout(this._toastTimer);
     this._toastTimer = setTimeout(() => {
       this._toast = null;
-      this._render();
+      this.shadowRoot?.querySelector("[data-toast]")?.classList.remove("show");
     }, 1800);
   }
 }
 
 RemoteStudioPanel.prototype._renderIndex = renderIndex;
 RemoteStudioPanel.prototype._renderDevice = renderDevice;
-RemoteStudioPanel.prototype._renderEditor = renderEditor;

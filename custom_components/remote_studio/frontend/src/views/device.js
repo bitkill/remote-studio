@@ -8,19 +8,10 @@
  * The advanced override editor is only there as an escape hatch.
  */
 import { batteryChipHtml, integrationChipHtml } from "../chips.js";
-import { describeActions, escapeAttr, escapeHtml } from "../helpers.js";
+import { escapeAttr, escapeHtml } from "../helpers.js";
 import { renderEditor } from "./editor.js";
 import { renderEventLogDevice } from "./log.js";
-
-const ROLE_LABELS = {
-  turn_on: "On",
-  turn_off: "Off",
-  toggle: "Toggle",
-  dim_up: "Dim ▲",
-  dim_down: "Dim ▼",
-  scene: "Scene",
-  none: "—",
-};
+import { renderStateRow, rgbToHex } from "./state-row.js";
 
 export function renderDevice() {
   if (!this._currentRemote) {
@@ -69,7 +60,7 @@ export function renderDevice() {
           </label>
         </div>
         ${this._error ? `<div class="error">${escapeHtml(this._error)}</div>` : ""}
-        ${this._toast ? `<div class="toast">${escapeHtml(this._toast)}</div>` : ""}
+        <div class="toast ${this._toast ? "show" : ""}" data-toast>${escapeHtml(this._toast || "")}</div>
         ${renderHealthWarning(this._currentRemote.health)}
         ${renderAutomationWarning(this._currentRemote.automations)}
         <section class="groups-section">${groupCards}</section>
@@ -92,9 +83,11 @@ export function renderRemoteSideContent(definition, selectedButton) {
   const buttonItems = definition.buttons
     .map((b) => renderButtonRow(b, selectedButton))
     .join("");
+  const groupCfg = selectedButton ? this._group(selectedButton.group) : null;
+  const overrides = this._currentRemote.overrides?.[selectedButton?.id] || {};
   const stateRows = (selectedButton?.states || [])
     .map((s) =>
-      renderStateRow.call(this, s, selectedButton, this._selectedStateId),
+      renderStateRow(s, groupCfg, overrides[s.id], s.id === this._selectedStateId),
     )
     .join("");
   const editor =
@@ -241,15 +234,6 @@ function renderGroupCard(group) {
     </div>`;
 }
 
-// Convert a stored [r, g, b] tuple to a hex string for <input type="color">,
-// or null when the user hasn't set one yet.
-function rgbToHex(rgb) {
-  if (!Array.isArray(rgb) || rgb.length !== 3) return null;
-  const [r, g, b] = rgb.map((v) => Math.max(0, Math.min(255, Number(v) || 0)));
-  const h = (n) => n.toString(16).padStart(2, "0");
-  return `#${h(r)}${h(g)}${h(b)}`;
-}
-
 function describeTarget(target) {
   if (!target || typeof target !== "object") return "No target picked yet";
   const ids = []
@@ -273,79 +257,3 @@ function renderButtonRow(button, selectedButton) {
     </li>`;
 }
 
-// State row: shows the resolved default summary OR an "Overridden" badge
-// when the user has wired a custom action via the advanced editor.
-function renderStateRow(state, button, selectedStateId) {
-  const isSelected = state.id === selectedStateId;
-  const override = this._currentRemote.overrides?.[button.id]?.[state.id];
-  const hasOverride = Array.isArray(override) && override.length > 0;
-  const groupCfg =
-    this._currentRemote.groups?.[button.group] || this._currentRemote.group_defaults;
-  const target = groupCfg.target || null;
-
-  let summary;
-  let summaryClass = "default";
-  if (hasOverride) {
-    summary = `Override · ${describeActions(override)}`;
-    summaryClass = "override";
-  } else if (state.role === "none") {
-    summary = "Unbound";
-    summaryClass = "muted";
-  } else if (!target) {
-    summary = "Pick a target above";
-    summaryClass = "muted";
-  } else {
-    summary = `Default · ${describeRole(state.role, target, groupCfg.dim_step, groupCfg.scene_color, groupCfg.scene_brightness)}`;
-  }
-
-  return `
-    <div
-      class="state-row ${isSelected ? "selected" : ""}"
-      data-state-id="${escapeAttr(state.id)}"
-    >
-      <div class="state-main">
-        <div class="state-label">
-          ${escapeHtml(state.label || state.id)}
-          <span class="role-pill role-${escapeAttr(state.role)}">${escapeHtml(ROLE_LABELS[state.role] || state.role)}</span>
-        </div>
-        <div class="state-summary ${summaryClass}">${escapeHtml(summary)}</div>
-      </div>
-    </div>`;
-}
-
-function describeRole(role, target, dimStep, sceneColor, sceneBrightness) {
-  const t = describeTargetShort(target);
-  switch (role) {
-    case "turn_on":
-      return `Turn on ${t}`;
-    case "turn_off":
-      return `Turn off ${t}`;
-    case "toggle":
-      return `Toggle ${t}`;
-    case "dim_up":
-      return `Brighten ${t} (+${dimStep}%)`;
-    case "dim_down":
-      return `Dim ${t} (-${dimStep}%)`;
-    case "scene": {
-      const hex = rgbToHex(sceneColor);
-      const pct = Number.isFinite(sceneBrightness) ? sceneBrightness : 100;
-      return hex
-        ? `Scene on ${t} (${pct}% @ ${hex})`
-        : `Scene on ${t} (${pct}%)`;
-    }
-    default:
-      return "Unbound";
-  }
-}
-
-function describeTargetShort(target) {
-  if (!target || typeof target !== "object") return "";
-  if (target.entity_id) {
-    return Array.isArray(target.entity_id)
-      ? target.entity_id[0]
-      : target.entity_id;
-  }
-  if (target.device_id) return "device";
-  if (target.area_id) return "area";
-  return "";
-}

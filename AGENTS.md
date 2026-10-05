@@ -49,5 +49,7 @@ No Python changes needed. Use `make events` to capture real signatures off the u
 ## Frontend layout
 
 - Entry: `custom_components/remote_studio/frontend/remote-studio-panel.js` (small — just registers the element).
-- Real code: `frontend/src/{constants,helpers,chips,styles,panel}.js` and `frontend/src/views/{index,device,editor,log}.js`.
+- Real code: `frontend/src/{constants,helpers,chips,styles,panel}.js` and `frontend/src/views/{index,device,editor,log,state-row}.js`.
+- `views/state-row.js` is the one template for a state's summary line; both the full render and the surgical `_refreshStateRows` use it. Don't re-type role→text anywhere else.
+- Views are string-in/string-out; test them with `npm test` (`node --test tests/frontend/`). The toast is toggled in place, never via `_render()`.
 - Routes: `/remote-studio` (index) and `/remote-studio/device/<device_id>[:<def_id>]` (device view).

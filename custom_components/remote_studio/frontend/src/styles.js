@@ -758,6 +758,7 @@ export const css = `
 
   /* ============================ Toasts & header chips ================ */
   .toast {
+    display: none;
     position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
     background: var(--primary-text-color, #222);
     color: var(--card-background-color, #fff);
@@ -765,6 +766,7 @@ export const css = `
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     z-index: 10;
   }
+  .toast.show { display: block; }
   .test-toggle {
     display: inline-flex; align-items: center; gap: 8px;
     cursor: pointer; user-select: none;

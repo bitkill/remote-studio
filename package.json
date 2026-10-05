@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "browse": "node --env-file=.env dev/browse.mjs",
-    "screenshot": "node --env-file=.env dev/screenshot.mjs"
+    "screenshot": "node --env-file=.env dev/screenshot.mjs",
+    "test": "node --test \"tests/frontend/**/*.test.mjs\""
   },
   "devDependencies": {
     "home-assistant-js-websocket": "^9.4.0",
