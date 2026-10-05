@@ -19,6 +19,7 @@ Home Assistant **custom integration** at `custom_components/remote_studio/` that
 - `make logs FILTER=remote_studio` = tail HA logs filtered by component.
 - `make events` = stream live event bus (use to capture ZHA/Z2M signatures for new remotes).
 - `make version` / `make wait` / `make restart` = self-explanatory.
+- `make check` = compile + build every layout through the real schema + pytest + `node --test`. CI runs the same script (`.github/workflows/check.yml`) on every push and PR; run it before pushing.
 - Tests: `/tmp/havenv/bin/python3 -m pytest` (after `make setup`). They are HA-free: only `custom_components/remote_studio/core/` is importable in tests, via `tests/conftest.py`. Never import `homeassistant` in `core/`.
 - The CLI is `scripts/ha.py`; `Makefile` just wraps it. Long-lived token is in `.env`.
 - Local frontend dev: `npm run dev` (Vite). `dev/shim.mjs` mounts the panel against the real HA over WebSocket so you get real devices/events without packaging.

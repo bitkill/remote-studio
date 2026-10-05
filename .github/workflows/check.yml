@@ -1,0 +1,27 @@
+name: Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Install HA-free test deps
+        run: pip install voluptuous pyyaml pytest
+      # compile + build every layout through core.definitions + pytest +
+      # node --test. No Home Assistant install: see docs/adr/0001.
+      - name: make check
+        run: python scripts/check.py

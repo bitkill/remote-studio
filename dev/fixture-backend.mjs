@@ -49,10 +49,13 @@ export function createFixtureBackend(fixture, { eventIntervalMs = 4000, stateInt
       return data.version;
     },
 
+    // Like the real backend: an explicit definitionId is a preview;
+    // otherwise the stored pairing wins over the auto-matched layout.
     async getRemote(deviceId, definitionId) {
       const d = device(deviceId);
-      if (!definitionId) return clone(d);
-      const def = data.definitions.find((x) => x.id === definitionId);
+      const wanted = definitionId || d.paired_definition_id;
+      if (!wanted || wanted === d.definition.id) return clone(d);
+      const def = data.definitions.find((x) => x.id === wanted);
       if (!def) throw notFound("definition");
       return clone({ ...d, definition: def, svg: def.svg });
     },

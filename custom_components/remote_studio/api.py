@@ -32,6 +32,7 @@ async def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_trigger_button)
     websocket_api.async_register_command(hass, ws_subscribe_events)
     websocket_api.async_register_command(hass, ws_enable_entities)
+    websocket_api.async_register_command(hass, ws_set_pairing)
 
 
 def _ws_context(connection: websocket_api.ActiveConnection) -> Context:
@@ -558,6 +559,39 @@ async def ws_trigger_button(
         connection.send_error(msg["id"], "action_failed", str(err))
         return
     connection.send_result(msg["id"], {"ok": True, "fired": True})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "remote_studio/set_pairing",
+        vol.Required("device_id"): str,
+        # null clears the pairing; the device falls back to auto-match.
+        vol.Required("definition_id"): vol.Any(None, str),
+    }
+)
+@websocket_api.async_response
+async def ws_set_pairing(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Record the user's layout choice for a device.
+
+    Pairing wins over auto-match everywhere (runtime, test mode, device
+    view) via EventRuntime.definitions_for. Entity-backed adapters are
+    resynced so a newly paired Matter/BLE device gets its subscriptions.
+    """
+    definition_id = msg["definition_id"]
+    if definition_id is not None:
+        registry = await async_get_registry(hass)
+        if registry.get(definition_id) is None:
+            connection.send_error(msg["id"], "no_definition", "Unknown layout")
+            return
+    store = await async_get_store(hass)
+    await store.async_set_pairing(msg["device_id"], definition_id)
+    runtime = await async_get_runtime(hass)
+    runtime.resync()
+    connection.send_result(msg["id"], {"ok": True, "paired_definition_id": definition_id})
 
 
 @websocket_api.websocket_command(

@@ -69,7 +69,11 @@ test("overrides, pairing and trigger semantics", async () => {
   await assert.rejects(b.triggerButton("fx-styrbar", "on", "nope"), BackendError);
 
   await b.setPairing("fx-styrbar", "ikea_bilresa_e2490");
-  assert.equal((await b.getRemote("fx-styrbar")).paired_definition_id, "ikea_bilresa_e2490");
+  const paired = await b.getRemote("fx-styrbar");
+  assert.equal(paired.paired_definition_id, "ikea_bilresa_e2490");
+  assert.equal(paired.definition.id, "ikea_bilresa_e2490"); // pairing wins over auto-match
+  await b.setPairing("fx-styrbar", null);
+  assert.equal((await b.getRemote("fx-styrbar")).definition.id, "ikea_styrbar");
   await assert.rejects(b.testAction([]), BackendError);
 });
 

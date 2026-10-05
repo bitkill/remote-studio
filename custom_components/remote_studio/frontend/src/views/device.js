@@ -38,6 +38,7 @@ export function renderDevice() {
     this._currentRemote.definition?.battery,
   );
   const integrationChip = integrationChipHtml(device.integration);
+  const pairing = renderPairingControl(this._currentRemote);
   const deviceCog = `<a slot="toolbar-icon" class="device-cog"
       href="/config/devices/device/${escapeAttr(device.id)}"
       title="Open this device in Home Assistant"
@@ -58,6 +59,7 @@ export function renderDevice() {
             <input type="checkbox" ${this._testMode ? "checked" : ""} data-test-toggle />
             <span>Test mode</span>
           </label>
+          ${pairing}
         </div>
         ${this._error ? `<div class="error">${escapeHtml(this._error)}</div>` : ""}
         <div class="toast ${this._toast ? "show" : ""}" data-toast>${escapeHtml(this._toast || "")}</div>
@@ -72,6 +74,25 @@ export function renderDevice() {
       </div>
     </hass-subpage>
   `;
+}
+
+// Pairing control. A stored pairing drives physical presses and test
+// mode (see EventRuntime.definitions_for), so the view says which state
+// it is in: previewing a layout that is not (yet) the pairing, or
+// showing the paired one.
+function renderPairingControl(remote) {
+  const paired = remote.paired_definition_id || null;
+  const shown = remote.definition?.id;
+  if (paired && paired === shown) {
+    return `<button type="button" class="pair-button is-paired"
+      data-unpair-layout
+      title="Stop using ${escapeAttr(remote.definition.name)} for this device and fall back to auto-detection">
+      Change layout</button>`;
+  }
+  return `<button type="button" class="pair-button"
+    data-pair-layout="${escapeAttr(shown || "")}"
+    title="Store ${escapeAttr(remote.definition?.name || "this layout")} as this device's layout — presses and test mode will use it">
+    Use this layout</button>`;
 }
 
 // Markup for the side-panel: button list + state list + (optional) editor.

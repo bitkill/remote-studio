@@ -408,6 +408,11 @@ export class RemoteStudioPanel extends HTMLElement {
   _syncFromRoute() {
     const rawPath = (this._route?.path || "").replace(/^\//, "");
     if (!rawPath) {
+      if (!this._listLoaded) {
+        this._view = "index";
+        this._loadRemotes();
+        return;
+      }
       if (this._view !== "index") {
         this._view = "index";
         this._currentRemote = null;
@@ -582,7 +587,37 @@ export class RemoteStudioPanel extends HTMLElement {
       this._wireGroupCards();
       this._wireButtonList();
       this._wireHealthFix();
+      this._wirePairing();
     }
+  }
+
+  _wirePairing() {
+    const root = this.shadowRoot;
+    root?.querySelector("[data-pair-layout]")?.addEventListener("click", (e) =>
+      this._setPairing(e.currentTarget.dataset.pairLayout || null),
+    );
+    root?.querySelector("[data-unpair-layout]")?.addEventListener("click", () =>
+      this._setPairing(null),
+    );
+  }
+
+  async _setPairing(definitionId) {
+    const deviceId = this._currentRemote?.device?.id;
+    if (!deviceId) return;
+    try {
+      await this._backend.setPairing(deviceId, definitionId);
+    } catch (err) {
+      this._showToast(`Pairing failed: ${errorMessage(err, "error")}`);
+      return;
+    }
+    // The index's remotes/candidates split changed; reload it next visit.
+    this._listLoaded = false;
+    this._showToast(definitionId ? "Layout saved for this device" : "Pairing cleared");
+    // Drop any preview suffix: the stored pairing (or auto-match) now
+    // decides what this URL shows.
+    this._currentRemote = null;
+    this._openDevice(deviceId);
+    this._loadRemote(deviceId);
   }
 
   _syncSubpage() {

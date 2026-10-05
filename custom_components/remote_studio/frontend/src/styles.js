@@ -776,6 +776,20 @@ export const css = `
     font-size: 0.85rem;
   }
   .test-toggle input { accent-color: var(--primary-color, #5b8def); }
+  .pair-button {
+    cursor: pointer;
+    padding: 6px 12px; border-radius: 999px;
+    background: var(--primary-color, #5b8def);
+    color: var(--text-primary-color, #fff);
+    border: 1px solid transparent;
+    font: inherit; font-size: 0.85rem;
+  }
+  .pair-button:hover { filter: brightness(0.95); }
+  .pair-button.is-paired {
+    background: var(--secondary-background-color, #f4f4f4);
+    color: var(--primary-text-color, #222);
+    border-color: var(--divider-color, #e0e0e0);
+  }
 
   /* Battery chip */
   .battery {

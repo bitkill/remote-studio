@@ -56,13 +56,18 @@ Common state IDs: `press`, `hold`, `release`, `double`, `single`. Pick names
 that read well in the UI — they're shown as-is when you don't supply a
 `label`.
 
-### Sources — three integrations supported
+### Sources — five integrations supported
 
-| key       | shape                                                | match logic                                         |
-|-----------|------------------------------------------------------|-----------------------------------------------------|
-| `zha`     | `{ command: "...", args: { k: v }, cluster: 6 }`     | `command` must equal; if `args` set, all keys/values must equal the event's args. |
-| `z2m`     | `{ action: "..." }`                                  | exact match on the MQTT payload's `action` field.   |
-| `matter`  | `{ event: "..." }`                                   | match against the Matter event entity (subset of v2 work). |
+| key               | shape                                                     | match logic                                                                                      |
+|-------------------|-----------------------------------------------------------|--------------------------------------------------------------------------------------------------|
+| `zha`             | `{ command: "...", args: { k: v }, cluster: 6 }`          | `command` must equal; if `args` set, all keys/values must equal the event's args.               |
+| `z2m`             | `{ action: "..." }`                                       | exact match on the MQTT payload's `action` field.                                               |
+| `matter`          | `{ event: "..." \| ["...", ...], endpoint: 1, attributes: { k: v } }` | HA's matter `event` entity for that endpoint reports `event_type` in the list; `attributes` must all match. Debounced by HA (~0.5–1 s). |
+| `matter_position` | `{ endpoint: 1, edge: rising \| falling }`                | the endpoint's `current_switch_position` sensor goes 0→1 (`rising`) or 1→0 (`falling`). Low latency; the sensors are disabled in HA by default and the panel offers a one-click enable. |
+| `xiaomi_ble`      | `{ event: "..." \| ["...", ...], attributes: { k: v } }`  | the device's xiaomi_ble `event` entity reports `event_type`; `attributes` must all match.       |
+
+Two states in one file may not claim the same signature — `make check`
+rejects it, because one of them would silently never fire.
 
 ### Finding the right signature
 
@@ -70,8 +75,10 @@ that read well in the UI — they're shown as-is when you don't supply a
   button, copy the `command` and `args`.
 - **Zigbee2MQTT**: subscribe to `zigbee2mqtt/<friendly_name>` (Z2M dashboard
   has a live log too) and read the `action` value.
-- **Matter**: pair the device, find the event entity in the device page,
-  watch its history.
+- **Matter**: pair the device, find the event entities (one per endpoint)
+  in the device page, watch their history. The endpoint number is in the
+  entity's unique id (`…-MatterNodeDevice-<endpoint>-…`).
+- **Any source**: `make events DEVICE=<id>` streams the live event bus.
 
 ---
 
@@ -88,6 +95,8 @@ inside the SVG apply to the rendered hotspots. Conventions:
   pick it up.
 - Keep colours in CSS custom properties (e.g. `var(--rs-btn-fill, #fff)`) so
   the layout reads well in HA's light and dark themes.
+- If the remote has rotation states (`rotate_*`), give the wheel graphic
+  `id="wheel"` so the panel can pulse it on live rotation events.
 
 Example minimal SVG:
 
@@ -109,13 +118,18 @@ Example minimal SVG:
 
 ## 3. Quick-test loop
 
+0. In a checkout: `make check` builds the YAML through the real schema and
+   verifies the SVG has a `button-<id>` group for every button.
 1. Drop the two files into `<config>/remote_studio/remotes/`.
 2. Restart Home Assistant (definitions are cached at startup).
 3. Open **Sidebar → Remote Studio**. The new layout shows up under
    *Available layouts*; if your manufacturer/model match a paired device,
    it appears under *Discovered remotes* automatically.
-4. Pair an unmatched device manually with the layout via the
-   *Unmatched devices* picker on the index page.
+4. Pair an unmatched device manually: pick the layout in the *Unmatched
+   devices* picker on the index page (a preview opens), then click **Use
+   this layout**. The pairing is stored and drives physical presses and
+   test mode, not just the view; **Change layout** on the device page
+   clears it.
 5. Use **Test mode** (toggle in the remote view) to fire actions by clicking
    the SVG instead of pressing the physical remote.
 
