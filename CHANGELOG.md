@@ -1,3 +1,9 @@
+## [0.24.1](https://github.com/bitkill/remote-studio/compare/v0.24.0...v0.24.1) (2026-10-05)
+
+### 🐛 Bug Fixes
+
+* **runtime:** discover entities registered after startup ([542e651](https://github.com/bitkill/remote-studio/commit/542e651c358bd132e2cce1738854707e6e3f1879))
+
 ## [0.24.0](https://github.com/bitkill/remote-studio/compare/v0.23.0...v0.24.0) (2026-10-05)
 
 ### ✨ Features
