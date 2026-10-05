@@ -27,6 +27,9 @@ export default defineConfig(({ mode }) => {
     define: {
       "import.meta.env.VITE_HA_URL": JSON.stringify(env.HA_URL || ""),
       "import.meta.env.VITE_HA_TOKEN": JSON.stringify(env.HA_TOKEN || ""),
+      // `VITE_BACKEND=fixture npm run dev` runs the panel against
+      // dev/fixture-backend.mjs with no HA at all.
+      "import.meta.env.VITE_BACKEND": JSON.stringify(process.env.VITE_BACKEND || ""),
     },
   };
 });

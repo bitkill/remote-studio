@@ -1,13 +1,15 @@
 PY ?= /tmp/havenv/bin/python3
 HA = $(PY) scripts/ha.py
 
-.PHONY: help dev screenshot browse setup install restart wait update version logs events check
+.PHONY: help dev dev-fixture fixture screenshot browse setup install restart wait update version logs events check
 
 help:
 	@printf 'Common targets:\n'
 	@printf '\n'
 	@printf '  Local frontend dev\n'
 	@printf '    make dev                  start Vite at http://localhost:5173 (panel served from there)\n'
+	@printf '    make dev-fixture          same, against dev/fixtures/remotes.json — no HA needed\n'
+	@printf '    make fixture              regenerate dev/fixtures/remotes.json from the real layouts\n'
 	@printf '    make screenshot PATH=…    full-page screenshot via Playwright (defaults to /remote-studio)\n'
 	@printf '    make browse PATH=…        headed Chromium dump of panel internals\n'
 	@printf '\n'
@@ -21,7 +23,7 @@ help:
 	@printf '    make events DEVICE=<id>   listen for zha_event (40s by default; --event-type=… also works)\n'
 	@printf '\n'
 	@printf '  Sanity\n'
-	@printf '    make check                py_compile + voluptuous schema-check every remote yaml\n'
+	@printf '    make check                compile + build every layout + pytest + node --test\n'
 	@printf '\n'
 	@printf '  Setup\n'
 	@printf '    make setup                create the venv at /tmp/havenv with websocket-client + voluptuous + pyyaml\n'
@@ -29,6 +31,12 @@ help:
 # ---------------------------------------------------------------- frontend
 dev:
 	npm run dev
+
+dev-fixture:
+	VITE_BACKEND=fixture npm run dev
+
+fixture:
+	@$(PY) scripts/make_fixture.py
 
 PATH_ARG ?= /remote-studio
 OUT ?= /tmp/screenshot.png

@@ -10,16 +10,9 @@ import {
   DOMAIN_ICON,
   MDI_PATHS,
   PANEL_BASE,
-  WS_ENABLE_ENTITIES,
-  WS_GET,
-  WS_LIST,
-  WS_SET_GROUP,
-  WS_SET_OVERRIDE,
-  WS_SUBSCRIBE,
-  WS_TEST,
-  WS_TRIGGER,
   actionTemplate,
 } from "./constants.js";
+import { createBackend, errorMessage } from "./backend.js";
 import { cssEscape, escapeAttr, escapeHtml } from "./helpers.js";
 import { css } from "./styles.js";
 
@@ -201,6 +194,8 @@ export class RemoteStudioPanel extends HTMLElement {
     this.attachShadow({ mode: "open" });
 
     this._hass = null;
+    this._backend = null; // see backend.js; built from the HA connection or injected
+    this._backendInjected = false;
     this._narrow = false;
     this._route = null;
     this._view = "index"; // 'index' | 'device'
@@ -286,6 +281,14 @@ export class RemoteStudioPanel extends HTMLElement {
   set hass(hass) {
     const wasNull = !this._hass;
     this._hass = hass;
+    // HA replaces `hass` on every state change but the connection is
+    // stable; rebuild the backend only when the connection object changes.
+    if (hass?.connection && !this._backendInjected) {
+      if (this._backendConnection !== hass.connection) {
+        this._backendConnection = hass.connection;
+        this._backend = createBackend(hass.connection);
+      }
+    }
     if (wasNull && hass) {
       if (!this._listLoaded) this._loadRemotes();
       this._subscribeEvents();
@@ -300,6 +303,16 @@ export class RemoteStudioPanel extends HTMLElement {
 
   get hass() {
     return this._hass;
+  }
+
+  // Inject a backend (dev shim, tests). Wins over the HA connection.
+  set backend(value) {
+    this._backend = value;
+    this._backendInjected = Boolean(value);
+  }
+
+  get backend() {
+    return this._backend;
   }
 
   set route(value) {
@@ -324,9 +337,7 @@ export class RemoteStudioPanel extends HTMLElement {
   async _loadRemotes() {
     this._listLoaded = true;
     try {
-      const result = await this._hass.connection.sendMessagePromise({
-        type: WS_LIST,
-      });
+      const result = await this._backend.listRemotes();
       this._remotes = Array.isArray(result.remotes) ? result.remotes : [];
       this._candidates = Array.isArray(result.candidates)
         ? result.candidates
@@ -336,26 +347,13 @@ export class RemoteStudioPanel extends HTMLElement {
         : [];
       this._version = result.version || null;
       if (!this._version) {
-        this._version = await this._fetchManifestVersion();
+        this._version = await this._backend.getVersion();
       }
       this._error = null;
     } catch (err) {
-      this._error =
-        (err && (err.message || err.code)) || "Failed to load remotes.";
+      this._error = errorMessage(err, "Failed to load remotes.");
     }
     this._render();
-  }
-
-  async _fetchManifestVersion() {
-    try {
-      const m = await this._hass.connection.sendMessagePromise({
-        type: "manifest/get",
-        integration: "remote_studio",
-      });
-      return m?.version || null;
-    } catch (_) {
-      return null;
-    }
   }
 
   async _loadRemote(deviceId, definitionId) {
@@ -366,9 +364,7 @@ export class RemoteStudioPanel extends HTMLElement {
     this._advancedOpen = false;
     this._render();
     try {
-      const msg = { type: WS_GET, device_id: deviceId };
-      if (definitionId) msg.definition_id = definitionId;
-      const result = await this._hass.connection.sendMessagePromise(msg);
+      const result = await this._backend.getRemote(deviceId, definitionId);
       this._currentRemote = result;
       if (result.definition?.buttons?.length) {
         this._selectedButtonId = result.definition.buttons[0].id;
@@ -377,11 +373,10 @@ export class RemoteStudioPanel extends HTMLElement {
         this._loadEditorFromOverride();
       }
       // Open per-entity subscriptions for whatever targets this remote
-      // already had stored. Awaited so failures surface in catch below.
+      // already had stored (not awaited: failures are logged per entity).
       this._syncEntitySubscriptions();
     } catch (err) {
-      this._error =
-        (err && (err.message || err.code)) || "Failed to load remote.";
+      this._error = errorMessage(err, "Failed to load remote.");
     }
     this._render();
   }
@@ -449,9 +444,8 @@ export class RemoteStudioPanel extends HTMLElement {
   async _subscribeEvents() {
     if (this._eventUnsub) return;
     try {
-      this._eventUnsub = await this._hass.connection.subscribeMessage(
-        (msg) => this._onRemoteEvent(msg),
-        { type: WS_SUBSCRIBE },
+      this._eventUnsub = await this._backend.subscribeRemoteEvents((msg) =>
+        this._onRemoteEvent(msg),
       );
     } catch (err) {
       console.warn("Remote Studio: live event subscription failed", err);
@@ -619,16 +613,11 @@ export class RemoteStudioPanel extends HTMLElement {
 
     let result;
     try {
-      result = await this._hass.connection.sendMessagePromise({
-        type: WS_ENABLE_ENTITIES,
-        entity_ids: ids,
-      });
+      result = await this._backend.enableEntities(ids);
     } catch (err) {
       btn.disabled = false;
       btn.textContent = `Enable ${ids.length} sensor${ids.length === 1 ? "" : "s"}`;
-      this._showToast(
-        `Couldn't enable: ${(err && (err.message || err.code)) || "error"}`,
-      );
+      this._showToast(`Couldn't enable: ${errorMessage(err, "error")}`);
       return;
     }
 
@@ -1036,7 +1025,7 @@ export class RemoteStudioPanel extends HTMLElement {
   // system. Diff-based: subscribes to new entities, drops ones no
   // longer referenced by any group.
   async _syncEntitySubscriptions() {
-    if (!this._hass?.connection) return;
+    if (!this._backend) return;
     const desired = new Set();
     const groups = this._currentRemote?.groups || {};
     for (const cfg of Object.values(groups)) {
@@ -1061,23 +1050,18 @@ export class RemoteStudioPanel extends HTMLElement {
       const initial = this._hass.states?.[eid];
       if (initial) this._entityStates.set(eid, initial);
       try {
-        const unsub = await this._hass.connection.subscribeMessage(
-          (msg) => this._onEntityStateChanged(eid, msg),
-          {
-            type: "subscribe_trigger",
-            trigger: { platform: "state", entity_id: eid },
-          },
+        const unsub = await this._backend.subscribeEntity(eid, (state) =>
+          this._onEntityStateChanged(eid, state),
         );
         this._entitySubs.set(eid, unsub);
       } catch (err) {
         this._entitySubs.delete(eid);
-        console.warn("Remote Studio: subscribe_trigger failed for", eid, err);
+        console.warn("Remote Studio: entity subscription failed for", eid, err);
       }
     }
   }
 
-  _onEntityStateChanged(entityId, msg) {
-    const newState = msg?.variables?.trigger?.to_state;
+  _onEntityStateChanged(entityId, newState) {
     if (!newState) return;
     this._entityStates.set(entityId, newState);
     // Skip the DOM update when nothing user-visible has changed —
@@ -1180,20 +1164,16 @@ export class RemoteStudioPanel extends HTMLElement {
   async _saveGroup(groupId) {
     if (!this._currentRemote) return;
     const stored = this._group(groupId);
-    const msg = {
-      type: WS_SET_GROUP,
-      device_id: this._currentRemote.device.id,
-      group_id: groupId,
-      target: stored.target || null,
-      dim_step: stored.dim_step,
-    };
+    const fields = { target: stored.target || null, dim_step: stored.dim_step };
     // Omitting the scene fields is the wire contract for "default".
     if (!stored.scene_is_default) {
-      if (Array.isArray(stored.scene_color)) msg.scene_color = stored.scene_color;
-      msg.scene_brightness = stored.scene_brightness;
+      if (Array.isArray(stored.scene_color)) fields.scene_color = stored.scene_color;
+      fields.scene_brightness = stored.scene_brightness;
     }
     try {
-      const result = await this._hass.connection.sendMessagePromise(msg);
+      const result = await this._backend.setGroup(
+        this._currentRemote.device.id, groupId, fields,
+      );
       // Adopt the canonical config (e.g. brightness dragged back to the
       // default reads as default again) and sync the reset button.
       if (result?.group && this._currentRemote) {
@@ -1204,9 +1184,7 @@ export class RemoteStudioPanel extends HTMLElement {
       }
       this._showToast("Saved");
     } catch (err) {
-      this._showToast(
-        `Save failed: ${(err && (err.message || err.code)) || "error"}`,
-      );
+      this._showToast(`Save failed: ${errorMessage(err, "error")}`);
     }
   }
 
@@ -1255,13 +1233,8 @@ export class RemoteStudioPanel extends HTMLElement {
         : button.states?.[0]?.id;
     if (!stateId) return;
     this._pulseButton(buttonId);
-    this._hass.connection
-      .sendMessagePromise({
-        type: WS_TRIGGER,
-        device_id: this._currentRemote.device.id,
-        button_id: buttonId,
-        state_id: stateId,
-      })
+    this._backend
+      .triggerButton(this._currentRemote.device.id, buttonId, stateId)
       .then((res) => {
         if (res && res.fired === false) {
           this._showToast(
@@ -1271,11 +1244,7 @@ export class RemoteStudioPanel extends HTMLElement {
           this._showToast(`Triggered ${button.label || buttonId} / ${stateId}`);
         }
       })
-      .catch((err) =>
-        this._showToast(
-          `Test failed: ${(err && (err.message || err.code)) || "error"}`,
-        ),
-      );
+      .catch((err) => this._showToast(`Test failed: ${errorMessage(err, "error")}`));
   }
 
   _wireButtonList() {
@@ -1404,41 +1373,37 @@ export class RemoteStudioPanel extends HTMLElement {
       return;
     }
     try {
-      await this._hass.connection.sendMessagePromise({
-        type: WS_SET_OVERRIDE,
-        device_id: this._currentRemote.device.id,
-        button_id: this._selectedButtonId,
-        state_id: this._selectedStateId,
+      await this._backend.setOverride(
+        this._currentRemote.device.id,
+        this._selectedButtonId,
+        this._selectedStateId,
         actions,
-      });
+      );
       this._setOverrideLocal(actions);
       this._editorDirty = false;
       this._editorError = null;
       this._showToast("Override saved");
     } catch (err) {
-      this._editorError =
-        (err && (err.message || err.code)) || "Save failed.";
+      this._editorError = errorMessage(err, "Save failed.");
     }
     this._render();
   }
 
   async _clearOverride() {
     try {
-      await this._hass.connection.sendMessagePromise({
-        type: WS_SET_OVERRIDE,
-        device_id: this._currentRemote.device.id,
-        button_id: this._selectedButtonId,
-        state_id: this._selectedStateId,
-        actions: [],
-      });
+      await this._backend.setOverride(
+        this._currentRemote.device.id,
+        this._selectedButtonId,
+        this._selectedStateId,
+        [],
+      );
       this._setOverrideLocal([]);
       this._editorText = "";
       this._editorDirty = false;
       this._editorError = null;
       this._showToast("Cleared override");
     } catch (err) {
-      this._editorError =
-        (err && (err.message || err.code)) || "Clear failed.";
+      this._editorError = errorMessage(err, "Clear failed.");
     }
     this._render();
   }
@@ -1458,14 +1423,10 @@ export class RemoteStudioPanel extends HTMLElement {
       return;
     }
     try {
-      await this._hass.connection.sendMessagePromise({
-        type: WS_TEST,
-        actions,
-      });
+      await this._backend.testAction(actions);
       this._showToast("Triggered");
     } catch (err) {
-      this._editorError =
-        (err && (err.message || err.code)) || "Test failed.";
+      this._editorError = errorMessage(err, "Test failed.");
       this._render();
     }
   }

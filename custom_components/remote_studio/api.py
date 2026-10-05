@@ -16,7 +16,8 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.loader import async_get_integration
 
 from .const import DOMAIN
-from .registry import RemoteDefinition, async_get_registry
+from .core.definitions import RemoteDefinition, serialise as serialise_definition
+from .registry import async_get_registry
 from .runtime import SIGNAL_REMOTE_EVENT, ActionError, async_get_runtime
 from .storage import GroupConfig, async_get_store
 
@@ -31,28 +32,6 @@ async def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_trigger_button)
     websocket_api.async_register_command(hass, ws_subscribe_events)
     websocket_api.async_register_command(hass, ws_enable_entities)
-
-
-def _serialise_definition(definition: RemoteDefinition) -> dict[str, Any]:
-    return {
-        "id": definition.id,
-        "name": definition.name,
-        "models": list(definition.models),
-        "battery": definition.battery,
-        "groups": definition.groups(),
-        "buttons": [
-            {
-                "id": btn.id,
-                "label": btn.label,
-                "group": btn.group,
-                "states": [
-                    {"id": s.id, "label": s.label, "role": s.role}
-                    for s in btn.states
-                ],
-            }
-            for btn in definition.buttons
-        ],
-    }
 
 
 def _ws_context(connection: websocket_api.ActiveConnection) -> Context:
@@ -362,7 +341,7 @@ async def ws_list_remotes(
 
     serialised_defs: list[dict[str, Any]] = []
     for d in registry.all():
-        s = _serialise_definition(d)
+        s = serialise_definition(d)
         s["svg"] = await _load_svg_cached(hass, d)
         serialised_defs.append(s)
 
@@ -434,7 +413,7 @@ async def ws_get_remote(
                 "integration": _device_integration(device),
                 "area": _device_area(hass, device),
             },
-            "definition": _serialise_definition(definition),
+            "definition": serialise_definition(definition),
             "svg": svg_text,
             **store.data.device_payload(device_id),
             "battery": battery,

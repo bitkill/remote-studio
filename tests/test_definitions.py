@@ -204,3 +204,15 @@ def test_groups_and_roles():
     assert d.group_for("on") == "dot1"
     assert d.group_for("ghost") == "main"
     assert d.sources == frozenset({"zha"})
+
+
+def test_serialise_shape():
+    d = load(REMOTES / "ikea_styrbar.yaml")
+    out = defs.serialise(d)
+    assert set(out) == {"id", "name", "models", "battery", "groups", "buttons"}
+    assert out["id"] == "ikea_styrbar"
+    assert out["groups"][0]["id"] == "main"
+    btn = out["buttons"][0]
+    assert set(btn) == {"id", "label", "group", "states"}
+    assert set(btn["states"][0]) == {"id", "label", "role"}
+    assert "sources" not in btn["states"][0]  # signatures never leave the backend

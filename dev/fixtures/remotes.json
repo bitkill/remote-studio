@@ -1,0 +1,749 @@
+{
+  "version": "0.0.0-fixture",
+  "remotes": [
+    {
+      "device_id": "fx-styrbar",
+      "device_name": "Living room remote",
+      "manufacturer": "IKEA of Sweden",
+      "model": "Remote Control N2",
+      "definition_id": "ikea_styrbar",
+      "integration": "zha",
+      "area": {
+        "id": "living",
+        "name": "Living room"
+      },
+      "battery": {
+        "entity_id": "sensor.living_room_remote_battery",
+        "state": "87",
+        "unit": "%"
+      },
+      "targets": [
+        "light.living_room"
+      ]
+    },
+    {
+      "device_id": "fx-bilresa",
+      "device_name": "Kitchen wheel",
+      "manufacturer": "IKEA of Sweden",
+      "model": "BILRESA scroll wheel",
+      "definition_id": "ikea_bilresa_e2490",
+      "integration": "matter",
+      "area": {
+        "id": "kitchen",
+        "name": "Kitchen"
+      },
+      "battery": {
+        "entity_id": "sensor.kitchen_wheel_battery",
+        "state": "23",
+        "unit": "%"
+      },
+      "targets": [
+        "light.kitchen",
+        "light.hallway"
+      ]
+    }
+  ],
+  "candidates": [
+    {
+      "device_id": "fx-candidate",
+      "device_name": "Mystery button",
+      "manufacturer": "Acme",
+      "model": "BTN-1",
+      "integration": "zha",
+      "area": null
+    }
+  ],
+  "definitions": [
+    {
+      "id": "ikea_styrbar",
+      "name": "IKEA STYRBAR",
+      "models": [
+        "Remote Control N2"
+      ],
+      "battery": {
+        "count": 1,
+        "type": "CR2032"
+      },
+      "groups": [
+        {
+          "id": "main",
+          "label": "Main",
+          "has_dim": true,
+          "has_scene": false,
+          "button_ids": [
+            "on",
+            "off",
+            "arrow_left",
+            "arrow_right"
+          ]
+        }
+      ],
+      "buttons": [
+        {
+          "id": "on",
+          "label": "On",
+          "group": "main",
+          "states": [
+            {
+              "id": "press",
+              "label": "Press",
+              "role": "turn_on"
+            },
+            {
+              "id": "hold",
+              "label": "Hold",
+              "role": "dim_up"
+            }
+          ]
+        },
+        {
+          "id": "off",
+          "label": "Off",
+          "group": "main",
+          "states": [
+            {
+              "id": "press",
+              "label": "Press",
+              "role": "turn_off"
+            },
+            {
+              "id": "hold",
+              "label": "Hold",
+              "role": "dim_down"
+            }
+          ]
+        },
+        {
+          "id": "arrow_left",
+          "label": "Left arrow",
+          "group": "main",
+          "states": [
+            {
+              "id": "press",
+              "label": "Press",
+              "role": "none"
+            },
+            {
+              "id": "hold",
+              "label": "Hold",
+              "role": "none"
+            }
+          ]
+        },
+        {
+          "id": "arrow_right",
+          "label": "Right arrow",
+          "group": "main",
+          "states": [
+            {
+              "id": "press",
+              "label": "Press",
+              "role": "none"
+            },
+            {
+              "id": "hold",
+              "label": "Hold",
+              "role": "none"
+            }
+          ]
+        }
+      ],
+      "svg": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!--\n  IKEA STYRBAR remote — front-on trace from the product photo.\n  A squarish paddle with rounded corners. Four flat-panel button zones:\n    Top:    ON  — sun-with-rays in a circular indent\n    Bottom: OFF — smaller dimmer-sun in a circular indent\n    Left:   \"<\" chevron\n    Right:  \">\" chevron\n-->\n<svg xmlns=\"http://www.w3.org/2000/svg\"\n     viewBox=\"0 0 280 280\"\n     role=\"img\"\n     aria-label=\"IKEA STYRBAR remote\">\n  <style>\n    .rs-button { cursor: pointer; transition: filter 120ms ease-in-out; }\n    .rs-button:hover .btn-shape { fill: #ebe6dc; }\n    .rs-button.is-active .btn-shape {\n      fill: var(--rs-btn-active-fill, #d8e8ff);\n      stroke: var(--rs-btn-active-stroke, #5b8def);\n    }\n    .rs-button.is-pulsing .btn-shape {\n      fill: var(--rs-btn-pulse-fill, #ffd66e);\n      transition: fill 80ms ease-out;\n    }\n    .icon { fill: none; stroke: #6e6859; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }\n    .indent {\n      fill: none;\n      stroke: #cfc8bc;\n      stroke-width: 1;\n      pointer-events: none;\n    }\n  </style>\n\n  <!-- Body: squircle (continuous-curvature rounded square). Each side\n       is one cubic bezier — control points are pulled close to the\n       corner so the sides read flat-ish in the middle and the\n       corners blend smoothly without a visible \"circle starts here\"\n       inflection. Matches the soft pebble feel of the real STYRBAR. -->\n  <path\n    d=\"M 140 20\n       C 230 20 260 50 260 140\n       C 260 230 230 260 140 260\n       C 50 260 20 230 20 140\n       C 20 50 50 20 140 20\n       Z\"\n    fill=\"#fafaf6\" stroke=\"#7a7363\" stroke-width=\"1.4\" />\n\n  <!-- ======== TOP: ON button (sun with rays) ======== -->\n  <g id=\"button-on\" class=\"rs-button\">\n    <!-- Hit area covers the upper third -->\n    <rect class=\"btn-shape\" x=\"20\" y=\"20\" width=\"240\" height=\"100\"\n          rx=\"40\" ry=\"40\" fill=\"transparent\" />\n    <!-- Circular indent around the icon -->\n    <circle class=\"indent\" cx=\"140\" cy=\"65\" r=\"22\" />\n    <!-- Sun with rays (the \"ON\" icon) -->\n    <g transform=\"translate(140, 65)\">\n      <circle class=\"icon\" r=\"7\" />\n      <line class=\"icon\" x1=\"0\"   y1=\"-12\" x2=\"0\"   y2=\"-17\" />\n      <line class=\"icon\" x1=\"12\"  y1=\"0\"   x2=\"17\"  y2=\"0\" />\n      <line class=\"icon\" x1=\"0\"   y1=\"12\"  x2=\"0\"   y2=\"17\" />\n      <line class=\"icon\" x1=\"-12\" y1=\"0\"   x2=\"-17\" y2=\"0\" />\n      <line class=\"icon\" x1=\"9\"   y1=\"-9\"  x2=\"13\"  y2=\"-13\" />\n      <line class=\"icon\" x1=\"9\"   y1=\"9\"   x2=\"13\"  y2=\"13\" />\n      <line class=\"icon\" x1=\"-9\"  y1=\"9\"   x2=\"-13\" y2=\"13\" />\n      <line class=\"icon\" x1=\"-9\"  y1=\"-9\"  x2=\"-13\" y2=\"-13\" />\n    </g>\n  </g>\n\n  <!-- ======== BOTTOM: OFF button (smaller dimmer sun) ======== -->\n  <g id=\"button-off\" class=\"rs-button\">\n    <rect class=\"btn-shape\" x=\"20\" y=\"180\" width=\"240\" height=\"80\"\n          rx=\"40\" ry=\"40\" fill=\"transparent\" />\n    <circle class=\"indent\" cx=\"140\" cy=\"220\" r=\"20\" />\n    <g transform=\"translate(140, 220)\">\n      <circle class=\"icon\" r=\"6\" />\n      <line class=\"icon\" x1=\"0\"   y1=\"-9\"  x2=\"0\"   y2=\"-11\" />\n      <line class=\"icon\" x1=\"9\"   y1=\"0\"   x2=\"11\"  y2=\"0\" />\n      <line class=\"icon\" x1=\"0\"   y1=\"9\"   x2=\"0\"   y2=\"11\" />\n      <line class=\"icon\" x1=\"-9\"  y1=\"0\"   x2=\"-11\" y2=\"0\" />\n      <line class=\"icon\" x1=\"6.4\" y1=\"-6.4\" x2=\"7.8\" y2=\"-7.8\" />\n      <line class=\"icon\" x1=\"6.4\" y1=\"6.4\"  x2=\"7.8\" y2=\"7.8\" />\n      <line class=\"icon\" x1=\"-6.4\" y1=\"6.4\" x2=\"-7.8\" y2=\"7.8\" />\n      <line class=\"icon\" x1=\"-6.4\" y1=\"-6.4\" x2=\"-7.8\" y2=\"-7.8\" />\n    </g>\n  </g>\n\n  <!-- ======== LEFT: \"<\" chevron ======== -->\n  <g id=\"button-arrow_left\" class=\"rs-button\">\n    <rect class=\"btn-shape\" x=\"20\" y=\"100\" width=\"80\" height=\"80\"\n          fill=\"transparent\" />\n    <polyline class=\"icon\" points=\"58,128 44,140 58,152\" />\n  </g>\n\n  <!-- ======== RIGHT: \">\" chevron ======== -->\n  <g id=\"button-arrow_right\" class=\"rs-button\">\n    <rect class=\"btn-shape\" x=\"180\" y=\"100\" width=\"80\" height=\"80\"\n          fill=\"transparent\" />\n    <polyline class=\"icon\" points=\"222,128 236,140 222,152\" />\n  </g>\n</svg>\n"
+    },
+    {
+      "id": "ikea_bilresa_e2490",
+      "name": "IKEA BILRESA (scroll wheel)",
+      "models": [
+        "E2490",
+        "BILRESA scroll wheel"
+      ],
+      "battery": {
+        "count": 2,
+        "type": "AAA"
+      },
+      "groups": [
+        {
+          "id": "dot1",
+          "label": "Dot 1",
+          "has_dim": true,
+          "has_scene": true,
+          "button_ids": [
+            "dot1"
+          ]
+        },
+        {
+          "id": "dot2",
+          "label": "Dot 2",
+          "has_dim": true,
+          "has_scene": true,
+          "button_ids": [
+            "dot2"
+          ]
+        },
+        {
+          "id": "dot3",
+          "label": "Dot 3",
+          "has_dim": true,
+          "has_scene": true,
+          "button_ids": [
+            "dot3"
+          ]
+        }
+      ],
+      "buttons": [
+        {
+          "id": "dot1",
+          "label": "Dot 1",
+          "group": "dot1",
+          "states": [
+            {
+              "id": "rotate_cw",
+              "label": "Rotate clockwise",
+              "role": "dim_up"
+            },
+            {
+              "id": "rotate_ccw",
+              "label": "Rotate counter-clockwise",
+              "role": "dim_down"
+            },
+            {
+              "id": "press",
+              "label": "Press",
+              "role": "toggle"
+            },
+            {
+              "id": "hold",
+              "label": "Long press",
+              "role": "scene"
+            }
+          ]
+        },
+        {
+          "id": "dot2",
+          "label": "Dot 2",
+          "group": "dot2",
+          "states": [
+            {
+              "id": "rotate_cw",
+              "label": "Rotate clockwise",
+              "role": "dim_up"
+            },
+            {
+              "id": "rotate_ccw",
+              "label": "Rotate counter-clockwise",
+              "role": "dim_down"
+            },
+            {
+              "id": "press",
+              "label": "Press",
+              "role": "toggle"
+            },
+            {
+              "id": "hold",
+              "label": "Long press",
+              "role": "scene"
+            }
+          ]
+        },
+        {
+          "id": "dot3",
+          "label": "Dot 3",
+          "group": "dot3",
+          "states": [
+            {
+              "id": "rotate_cw",
+              "label": "Rotate clockwise",
+              "role": "dim_up"
+            },
+            {
+              "id": "rotate_ccw",
+              "label": "Rotate counter-clockwise",
+              "role": "dim_down"
+            },
+            {
+              "id": "press",
+              "label": "Press",
+              "role": "toggle"
+            },
+            {
+              "id": "hold",
+              "label": "Long press",
+              "role": "scene"
+            }
+          ]
+        }
+      ],
+      "svg": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!--\n  IKEA BILRESA scroll wheel — straight-on trace from product photos.\n    Body W:H ≈ 1 : 1.4 (160 × 224 in this viewBox).\n    Wheel diameter ≈ 87% of body width (close to the silhouette edges\n    on left & right, like the photos).\n    Wheel sits high on the body, dots cluster just below it.\n-->\n<svg xmlns=\"http://www.w3.org/2000/svg\"\n     viewBox=\"0 0 200 264\"\n     role=\"img\"\n     aria-label=\"IKEA BILRESA scroll wheel\">\n  <style>\n    .rs-button { cursor: pointer; transition: filter 120ms ease-in-out; }\n    .rs-button:hover circle.dot { fill: #5b554a; }\n    .rs-button.is-active circle.dot {\n      fill: var(--rs-btn-active-stroke, #5b8def);\n    }\n    .rs-button.is-pulsing circle.dot {\n      fill: var(--rs-btn-pulse-fill, #ffd66e);\n      transition: fill 80ms ease-out;\n    }\n\n    .rs-wheel { transform-origin: 100px 92px; transition: transform 280ms ease-out; }\n    .rs-wheel.is-pulsing { animation: rs-wheel-pulse 480ms ease-out 1; }\n    @keyframes rs-wheel-pulse {\n      0%   { transform: scale(1); }\n      30%  { transform: scale(1.03); }\n      100% { transform: scale(1); }\n    }\n\n    .dot { fill: #b8b1a0; }\n  </style>\n\n  <!-- Body silhouette: vertical pill, fully rounded ends, cream fill. -->\n  <path d=\"M 20 100\n           A 80 80 0 0 1 180 100\n           L 180 164\n           A 80 80 0 0 1 20 164\n           Z\"\n        fill=\"#efeadd\"\n        stroke=\"#7a7363\"\n        stroke-width=\"1.4\"\n        stroke-linejoin=\"round\" />\n\n  <!-- Wheel disc — slightly lighter than the body. -->\n  <g class=\"rs-wheel\" id=\"wheel\">\n    <circle cx=\"100\" cy=\"92\" r=\"69\"\n            fill=\"#f7f3e9\" stroke=\"#7a7363\" stroke-width=\"1.2\" />\n  </g>\n\n  <!-- Three indicator dots, centered just below the wheel. -->\n  <g id=\"button-dot1\" class=\"rs-button\">\n    <circle cx=\"93\" cy=\"180\" r=\"10\" fill=\"transparent\" />\n    <circle class=\"dot\" cx=\"93\" cy=\"180\" r=\"1.8\" />\n  </g>\n  <g id=\"button-dot2\" class=\"rs-button\">\n    <circle cx=\"100\" cy=\"180\" r=\"10\" fill=\"transparent\" />\n    <circle class=\"dot\" cx=\"100\" cy=\"180\" r=\"1.8\" />\n  </g>\n  <g id=\"button-dot3\" class=\"rs-button\">\n    <circle cx=\"107\" cy=\"180\" r=\"10\" fill=\"transparent\" />\n    <circle class=\"dot\" cx=\"107\" cy=\"180\" r=\"1.8\" />\n  </g>\n</svg>\n"
+    }
+  ],
+  "devices": {
+    "fx-styrbar": {
+      "device": {
+        "id": "fx-styrbar",
+        "name": "Living room remote",
+        "manufacturer": "IKEA of Sweden",
+        "model": "Remote Control N2",
+        "integration": "zha",
+        "area": {
+          "id": "living",
+          "name": "Living room"
+        }
+      },
+      "definition": {
+        "id": "ikea_styrbar",
+        "name": "IKEA STYRBAR",
+        "models": [
+          "Remote Control N2"
+        ],
+        "battery": {
+          "count": 1,
+          "type": "CR2032"
+        },
+        "groups": [
+          {
+            "id": "main",
+            "label": "Main",
+            "has_dim": true,
+            "has_scene": false,
+            "button_ids": [
+              "on",
+              "off",
+              "arrow_left",
+              "arrow_right"
+            ]
+          }
+        ],
+        "buttons": [
+          {
+            "id": "on",
+            "label": "On",
+            "group": "main",
+            "states": [
+              {
+                "id": "press",
+                "label": "Press",
+                "role": "turn_on"
+              },
+              {
+                "id": "hold",
+                "label": "Hold",
+                "role": "dim_up"
+              }
+            ]
+          },
+          {
+            "id": "off",
+            "label": "Off",
+            "group": "main",
+            "states": [
+              {
+                "id": "press",
+                "label": "Press",
+                "role": "turn_off"
+              },
+              {
+                "id": "hold",
+                "label": "Hold",
+                "role": "dim_down"
+              }
+            ]
+          },
+          {
+            "id": "arrow_left",
+            "label": "Left arrow",
+            "group": "main",
+            "states": [
+              {
+                "id": "press",
+                "label": "Press",
+                "role": "none"
+              },
+              {
+                "id": "hold",
+                "label": "Hold",
+                "role": "none"
+              }
+            ]
+          },
+          {
+            "id": "arrow_right",
+            "label": "Right arrow",
+            "group": "main",
+            "states": [
+              {
+                "id": "press",
+                "label": "Press",
+                "role": "none"
+              },
+              {
+                "id": "hold",
+                "label": "Hold",
+                "role": "none"
+              }
+            ]
+          }
+        ]
+      },
+      "svg": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!--\n  IKEA STYRBAR remote — front-on trace from the product photo.\n  A squarish paddle with rounded corners. Four flat-panel button zones:\n    Top:    ON  — sun-with-rays in a circular indent\n    Bottom: OFF — smaller dimmer-sun in a circular indent\n    Left:   \"<\" chevron\n    Right:  \">\" chevron\n-->\n<svg xmlns=\"http://www.w3.org/2000/svg\"\n     viewBox=\"0 0 280 280\"\n     role=\"img\"\n     aria-label=\"IKEA STYRBAR remote\">\n  <style>\n    .rs-button { cursor: pointer; transition: filter 120ms ease-in-out; }\n    .rs-button:hover .btn-shape { fill: #ebe6dc; }\n    .rs-button.is-active .btn-shape {\n      fill: var(--rs-btn-active-fill, #d8e8ff);\n      stroke: var(--rs-btn-active-stroke, #5b8def);\n    }\n    .rs-button.is-pulsing .btn-shape {\n      fill: var(--rs-btn-pulse-fill, #ffd66e);\n      transition: fill 80ms ease-out;\n    }\n    .icon { fill: none; stroke: #6e6859; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }\n    .indent {\n      fill: none;\n      stroke: #cfc8bc;\n      stroke-width: 1;\n      pointer-events: none;\n    }\n  </style>\n\n  <!-- Body: squircle (continuous-curvature rounded square). Each side\n       is one cubic bezier — control points are pulled close to the\n       corner so the sides read flat-ish in the middle and the\n       corners blend smoothly without a visible \"circle starts here\"\n       inflection. Matches the soft pebble feel of the real STYRBAR. -->\n  <path\n    d=\"M 140 20\n       C 230 20 260 50 260 140\n       C 260 230 230 260 140 260\n       C 50 260 20 230 20 140\n       C 20 50 50 20 140 20\n       Z\"\n    fill=\"#fafaf6\" stroke=\"#7a7363\" stroke-width=\"1.4\" />\n\n  <!-- ======== TOP: ON button (sun with rays) ======== -->\n  <g id=\"button-on\" class=\"rs-button\">\n    <!-- Hit area covers the upper third -->\n    <rect class=\"btn-shape\" x=\"20\" y=\"20\" width=\"240\" height=\"100\"\n          rx=\"40\" ry=\"40\" fill=\"transparent\" />\n    <!-- Circular indent around the icon -->\n    <circle class=\"indent\" cx=\"140\" cy=\"65\" r=\"22\" />\n    <!-- Sun with rays (the \"ON\" icon) -->\n    <g transform=\"translate(140, 65)\">\n      <circle class=\"icon\" r=\"7\" />\n      <line class=\"icon\" x1=\"0\"   y1=\"-12\" x2=\"0\"   y2=\"-17\" />\n      <line class=\"icon\" x1=\"12\"  y1=\"0\"   x2=\"17\"  y2=\"0\" />\n      <line class=\"icon\" x1=\"0\"   y1=\"12\"  x2=\"0\"   y2=\"17\" />\n      <line class=\"icon\" x1=\"-12\" y1=\"0\"   x2=\"-17\" y2=\"0\" />\n      <line class=\"icon\" x1=\"9\"   y1=\"-9\"  x2=\"13\"  y2=\"-13\" />\n      <line class=\"icon\" x1=\"9\"   y1=\"9\"   x2=\"13\"  y2=\"13\" />\n      <line class=\"icon\" x1=\"-9\"  y1=\"9\"   x2=\"-13\" y2=\"13\" />\n      <line class=\"icon\" x1=\"-9\"  y1=\"-9\"  x2=\"-13\" y2=\"-13\" />\n    </g>\n  </g>\n\n  <!-- ======== BOTTOM: OFF button (smaller dimmer sun) ======== -->\n  <g id=\"button-off\" class=\"rs-button\">\n    <rect class=\"btn-shape\" x=\"20\" y=\"180\" width=\"240\" height=\"80\"\n          rx=\"40\" ry=\"40\" fill=\"transparent\" />\n    <circle class=\"indent\" cx=\"140\" cy=\"220\" r=\"20\" />\n    <g transform=\"translate(140, 220)\">\n      <circle class=\"icon\" r=\"6\" />\n      <line class=\"icon\" x1=\"0\"   y1=\"-9\"  x2=\"0\"   y2=\"-11\" />\n      <line class=\"icon\" x1=\"9\"   y1=\"0\"   x2=\"11\"  y2=\"0\" />\n      <line class=\"icon\" x1=\"0\"   y1=\"9\"   x2=\"0\"   y2=\"11\" />\n      <line class=\"icon\" x1=\"-9\"  y1=\"0\"   x2=\"-11\" y2=\"0\" />\n      <line class=\"icon\" x1=\"6.4\" y1=\"-6.4\" x2=\"7.8\" y2=\"-7.8\" />\n      <line class=\"icon\" x1=\"6.4\" y1=\"6.4\"  x2=\"7.8\" y2=\"7.8\" />\n      <line class=\"icon\" x1=\"-6.4\" y1=\"6.4\" x2=\"-7.8\" y2=\"7.8\" />\n      <line class=\"icon\" x1=\"-6.4\" y1=\"-6.4\" x2=\"-7.8\" y2=\"-7.8\" />\n    </g>\n  </g>\n\n  <!-- ======== LEFT: \"<\" chevron ======== -->\n  <g id=\"button-arrow_left\" class=\"rs-button\">\n    <rect class=\"btn-shape\" x=\"20\" y=\"100\" width=\"80\" height=\"80\"\n          fill=\"transparent\" />\n    <polyline class=\"icon\" points=\"58,128 44,140 58,152\" />\n  </g>\n\n  <!-- ======== RIGHT: \">\" chevron ======== -->\n  <g id=\"button-arrow_right\" class=\"rs-button\">\n    <rect class=\"btn-shape\" x=\"180\" y=\"100\" width=\"80\" height=\"80\"\n          fill=\"transparent\" />\n    <polyline class=\"icon\" points=\"222,128 236,140 222,152\" />\n  </g>\n</svg>\n",
+      "groups": {
+        "main": {
+          "target": {
+            "entity_id": "light.living_room"
+          },
+          "dim_step": 10,
+          "scene_brightness": 100,
+          "scene_color": null,
+          "scene_is_default": true
+        }
+      },
+      "group_defaults": {
+        "target": null,
+        "dim_step": 20,
+        "scene_brightness": 100,
+        "scene_color": null,
+        "scene_is_default": true
+      },
+      "overrides": {
+        "arrow_left": {
+          "press": [
+            {
+              "service": "scene.turn_on",
+              "target": {
+                "entity_id": "scene.movie"
+              }
+            }
+          ]
+        }
+      },
+      "paired_definition_id": null,
+      "battery": {
+        "entity_id": "sensor.living_room_remote_battery",
+        "state": "87",
+        "unit": "%"
+      },
+      "automations": [
+        {
+          "entity_id": "automation.living_room_remote",
+          "name": "Living room remote (old)",
+          "unique_id": "fx-auto"
+        }
+      ],
+      "health": {
+        "disabled_entities": []
+      }
+    },
+    "fx-bilresa": {
+      "device": {
+        "id": "fx-bilresa",
+        "name": "Kitchen wheel",
+        "manufacturer": "IKEA of Sweden",
+        "model": "BILRESA scroll wheel",
+        "integration": "matter",
+        "area": {
+          "id": "kitchen",
+          "name": "Kitchen"
+        }
+      },
+      "definition": {
+        "id": "ikea_bilresa_e2490",
+        "name": "IKEA BILRESA (scroll wheel)",
+        "models": [
+          "E2490",
+          "BILRESA scroll wheel"
+        ],
+        "battery": {
+          "count": 2,
+          "type": "AAA"
+        },
+        "groups": [
+          {
+            "id": "dot1",
+            "label": "Dot 1",
+            "has_dim": true,
+            "has_scene": true,
+            "button_ids": [
+              "dot1"
+            ]
+          },
+          {
+            "id": "dot2",
+            "label": "Dot 2",
+            "has_dim": true,
+            "has_scene": true,
+            "button_ids": [
+              "dot2"
+            ]
+          },
+          {
+            "id": "dot3",
+            "label": "Dot 3",
+            "has_dim": true,
+            "has_scene": true,
+            "button_ids": [
+              "dot3"
+            ]
+          }
+        ],
+        "buttons": [
+          {
+            "id": "dot1",
+            "label": "Dot 1",
+            "group": "dot1",
+            "states": [
+              {
+                "id": "rotate_cw",
+                "label": "Rotate clockwise",
+                "role": "dim_up"
+              },
+              {
+                "id": "rotate_ccw",
+                "label": "Rotate counter-clockwise",
+                "role": "dim_down"
+              },
+              {
+                "id": "press",
+                "label": "Press",
+                "role": "toggle"
+              },
+              {
+                "id": "hold",
+                "label": "Long press",
+                "role": "scene"
+              }
+            ]
+          },
+          {
+            "id": "dot2",
+            "label": "Dot 2",
+            "group": "dot2",
+            "states": [
+              {
+                "id": "rotate_cw",
+                "label": "Rotate clockwise",
+                "role": "dim_up"
+              },
+              {
+                "id": "rotate_ccw",
+                "label": "Rotate counter-clockwise",
+                "role": "dim_down"
+              },
+              {
+                "id": "press",
+                "label": "Press",
+                "role": "toggle"
+              },
+              {
+                "id": "hold",
+                "label": "Long press",
+                "role": "scene"
+              }
+            ]
+          },
+          {
+            "id": "dot3",
+            "label": "Dot 3",
+            "group": "dot3",
+            "states": [
+              {
+                "id": "rotate_cw",
+                "label": "Rotate clockwise",
+                "role": "dim_up"
+              },
+              {
+                "id": "rotate_ccw",
+                "label": "Rotate counter-clockwise",
+                "role": "dim_down"
+              },
+              {
+                "id": "press",
+                "label": "Press",
+                "role": "toggle"
+              },
+              {
+                "id": "hold",
+                "label": "Long press",
+                "role": "scene"
+              }
+            ]
+          }
+        ]
+      },
+      "svg": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!--\n  IKEA BILRESA scroll wheel — straight-on trace from product photos.\n    Body W:H ≈ 1 : 1.4 (160 × 224 in this viewBox).\n    Wheel diameter ≈ 87% of body width (close to the silhouette edges\n    on left & right, like the photos).\n    Wheel sits high on the body, dots cluster just below it.\n-->\n<svg xmlns=\"http://www.w3.org/2000/svg\"\n     viewBox=\"0 0 200 264\"\n     role=\"img\"\n     aria-label=\"IKEA BILRESA scroll wheel\">\n  <style>\n    .rs-button { cursor: pointer; transition: filter 120ms ease-in-out; }\n    .rs-button:hover circle.dot { fill: #5b554a; }\n    .rs-button.is-active circle.dot {\n      fill: var(--rs-btn-active-stroke, #5b8def);\n    }\n    .rs-button.is-pulsing circle.dot {\n      fill: var(--rs-btn-pulse-fill, #ffd66e);\n      transition: fill 80ms ease-out;\n    }\n\n    .rs-wheel { transform-origin: 100px 92px; transition: transform 280ms ease-out; }\n    .rs-wheel.is-pulsing { animation: rs-wheel-pulse 480ms ease-out 1; }\n    @keyframes rs-wheel-pulse {\n      0%   { transform: scale(1); }\n      30%  { transform: scale(1.03); }\n      100% { transform: scale(1); }\n    }\n\n    .dot { fill: #b8b1a0; }\n  </style>\n\n  <!-- Body silhouette: vertical pill, fully rounded ends, cream fill. -->\n  <path d=\"M 20 100\n           A 80 80 0 0 1 180 100\n           L 180 164\n           A 80 80 0 0 1 20 164\n           Z\"\n        fill=\"#efeadd\"\n        stroke=\"#7a7363\"\n        stroke-width=\"1.4\"\n        stroke-linejoin=\"round\" />\n\n  <!-- Wheel disc — slightly lighter than the body. -->\n  <g class=\"rs-wheel\" id=\"wheel\">\n    <circle cx=\"100\" cy=\"92\" r=\"69\"\n            fill=\"#f7f3e9\" stroke=\"#7a7363\" stroke-width=\"1.2\" />\n  </g>\n\n  <!-- Three indicator dots, centered just below the wheel. -->\n  <g id=\"button-dot1\" class=\"rs-button\">\n    <circle cx=\"93\" cy=\"180\" r=\"10\" fill=\"transparent\" />\n    <circle class=\"dot\" cx=\"93\" cy=\"180\" r=\"1.8\" />\n  </g>\n  <g id=\"button-dot2\" class=\"rs-button\">\n    <circle cx=\"100\" cy=\"180\" r=\"10\" fill=\"transparent\" />\n    <circle class=\"dot\" cx=\"100\" cy=\"180\" r=\"1.8\" />\n  </g>\n  <g id=\"button-dot3\" class=\"rs-button\">\n    <circle cx=\"107\" cy=\"180\" r=\"10\" fill=\"transparent\" />\n    <circle class=\"dot\" cx=\"107\" cy=\"180\" r=\"1.8\" />\n  </g>\n</svg>\n",
+      "groups": {
+        "dot1": {
+          "target": {
+            "entity_id": "light.kitchen"
+          },
+          "dim_step": 20,
+          "scene_brightness": 40,
+          "scene_color": [
+            255,
+            217,
+            168
+          ],
+          "scene_is_default": false
+        },
+        "dot2": {
+          "target": {
+            "entity_id": "light.hallway"
+          },
+          "dim_step": 20,
+          "scene_brightness": 100,
+          "scene_color": null,
+          "scene_is_default": true
+        }
+      },
+      "group_defaults": {
+        "target": null,
+        "dim_step": 20,
+        "scene_brightness": 100,
+        "scene_color": null,
+        "scene_is_default": true
+      },
+      "overrides": {},
+      "paired_definition_id": null,
+      "battery": {
+        "entity_id": "sensor.kitchen_wheel_battery",
+        "state": "23",
+        "unit": "%"
+      },
+      "automations": [],
+      "health": {
+        "disabled_entities": [
+          {
+            "entity_id": "sensor.kitchen_wheel_current_switch_position_1",
+            "kind": "matter_position"
+          }
+        ]
+      }
+    }
+  },
+  "states": {
+    "light.living_room": {
+      "entity_id": "light.living_room",
+      "state": "on",
+      "attributes": {
+        "friendly_name": "Living Room",
+        "brightness": 180,
+        "color_mode": "color_temp",
+        "color_temp_kelvin": 2700,
+        "supported_color_modes": [
+          "color_temp",
+          "hs"
+        ]
+      },
+      "last_changed": "2026-10-05T10:00:00+00:00",
+      "last_updated": "2026-10-05T10:00:00+00:00"
+    },
+    "light.kitchen": {
+      "entity_id": "light.kitchen",
+      "state": "off",
+      "attributes": {
+        "friendly_name": "Kitchen",
+        "supported_color_modes": [
+          "hs",
+          "color_temp"
+        ]
+      },
+      "last_changed": "2026-10-05T10:00:00+00:00",
+      "last_updated": "2026-10-05T10:00:00+00:00"
+    },
+    "light.hallway": {
+      "entity_id": "light.hallway",
+      "state": "on",
+      "attributes": {
+        "friendly_name": "Hallway",
+        "brightness": 60,
+        "color_mode": "brightness",
+        "supported_color_modes": [
+          "brightness"
+        ]
+      },
+      "last_changed": "2026-10-05T10:00:00+00:00",
+      "last_updated": "2026-10-05T10:00:00+00:00"
+    },
+    "light.bedroom": {
+      "entity_id": "light.bedroom",
+      "state": "off",
+      "attributes": {
+        "friendly_name": "Bedroom",
+        "supported_color_modes": [
+          "brightness"
+        ]
+      },
+      "last_changed": "2026-10-05T10:00:00+00:00",
+      "last_updated": "2026-10-05T10:00:00+00:00"
+    },
+    "switch.fan": {
+      "entity_id": "switch.fan",
+      "state": "on",
+      "attributes": {
+        "friendly_name": "Fan"
+      },
+      "last_changed": "2026-10-05T10:00:00+00:00",
+      "last_updated": "2026-10-05T10:00:00+00:00"
+    },
+    "scene.movie": {
+      "entity_id": "scene.movie",
+      "state": "unknown",
+      "attributes": {
+        "friendly_name": "Movie"
+      },
+      "last_changed": "2026-10-05T10:00:00+00:00",
+      "last_updated": "2026-10-05T10:00:00+00:00"
+    },
+    "script.goodnight": {
+      "entity_id": "script.goodnight",
+      "state": "off",
+      "attributes": {
+        "friendly_name": "Goodnight"
+      },
+      "last_changed": "2026-10-05T10:00:00+00:00",
+      "last_updated": "2026-10-05T10:00:00+00:00"
+    },
+    "sensor.living_room_remote_battery": {
+      "entity_id": "sensor.living_room_remote_battery",
+      "state": "87",
+      "attributes": {
+        "friendly_name": "Living Room Remote Battery",
+        "device_class": "battery",
+        "unit_of_measurement": "%"
+      },
+      "last_changed": "2026-10-05T10:00:00+00:00",
+      "last_updated": "2026-10-05T10:00:00+00:00"
+    },
+    "sensor.kitchen_wheel_battery": {
+      "entity_id": "sensor.kitchen_wheel_battery",
+      "state": "23",
+      "attributes": {
+        "friendly_name": "Kitchen Wheel Battery",
+        "device_class": "battery",
+        "unit_of_measurement": "%"
+      },
+      "last_changed": "2026-10-05T10:00:00+00:00",
+      "last_updated": "2026-10-05T10:00:00+00:00"
+    }
+  },
+  "events": [
+    {
+      "device_id": "fx-styrbar",
+      "button_id": "on",
+      "state_id": "press"
+    },
+    {
+      "device_id": "fx-bilresa",
+      "button_id": "dot1",
+      "state_id": "rotate_cw"
+    },
+    {
+      "device_id": "fx-styrbar",
+      "button_id": "off",
+      "state_id": "hold"
+    },
+    {
+      "device_id": "fx-bilresa",
+      "button_id": "dot2",
+      "state_id": "press"
+    }
+  ]
+}

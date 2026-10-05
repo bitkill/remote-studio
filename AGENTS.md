@@ -22,6 +22,7 @@ Home Assistant **custom integration** at `custom_components/remote_studio/` that
 - Tests: `/tmp/havenv/bin/python3 -m pytest` (after `make setup`). They are HA-free: only `custom_components/remote_studio/core/` is importable in tests, via `tests/conftest.py`. Never import `homeassistant` in `core/`.
 - The CLI is `scripts/ha.py`; `Makefile` just wraps it. Long-lived token is in `.env`.
 - Local frontend dev: `npm run dev` (Vite). `dev/shim.mjs` mounts the panel against the real HA over WebSocket so you get real devices/events without packaging.
+- **No HA handy?** `make dev-fixture` runs the panel against `dev/fixture-backend.mjs` + `dev/fixtures/remotes.json` (regenerate with `make fixture`; it is built from the real layouts by `scripts/make_fixture.py`). `make screenshot` works against it too.
 
 ## Traps we've already hit (don't pay for them again)
 
@@ -50,6 +51,7 @@ No Python changes needed. Use `make events` to capture real signatures off the u
 
 - Entry: `custom_components/remote_studio/frontend/remote-studio-panel.js` (small — just registers the element).
 - Real code: `frontend/src/{constants,helpers,chips,styles,panel}.js` and `frontend/src/views/{index,device,editor,log,state-row}.js`.
+- `backend.js` is the panel's only route to HA: eleven methods, one `BackendError`. Never call `hass.connection` from panel code; add a method (and its fixture twin in `dev/fixture-backend.mjs`) instead.
 - `views/state-row.js` is the one template for a state's summary line; both the full render and the surgical `_refreshStateRows` use it. Don't re-type role→text anywhere else.
 - Views are string-in/string-out; test them with `npm test` (`node --test tests/frontend/`). The toast is toggled in place, never via `_render()`.
 - Routes: `/remote-studio` (index) and `/remote-studio/device/<device_id>[:<def_id>]` (device view).

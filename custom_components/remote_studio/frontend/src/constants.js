@@ -19,6 +19,7 @@ export const WS_TEST = "remote_studio/test_action";
 export const WS_TRIGGER = "remote_studio/trigger_button";
 export const WS_SUBSCRIBE = "remote_studio/subscribe_events";
 export const WS_ENABLE_ENTITIES = "remote_studio/enable_entities";
+export const WS_SET_PAIRING = "remote_studio/set_pairing";
 
 
 const PLACEHOLDER = {

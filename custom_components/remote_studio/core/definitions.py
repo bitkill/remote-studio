@@ -450,6 +450,29 @@ def _index(d: RemoteDefinition) -> None:
                 d._matter_position[key] = match
 
 
+# ------------------------------------------------------------------ serialise
+def serialise(definition: RemoteDefinition) -> dict[str, Any]:
+    """The definition as the websocket API ships it (SVG text added by the caller)."""
+    return {
+        "id": definition.id,
+        "name": definition.name,
+        "models": list(definition.models),
+        "battery": definition.battery,
+        "groups": definition.groups(),
+        "buttons": [
+            {
+                "id": btn.id,
+                "label": btn.label,
+                "group": btn.group,
+                "states": [
+                    {"id": s.id, "label": s.label, "role": s.role} for s in btn.states
+                ],
+            }
+            for btn in definition.buttons
+        ],
+    }
+
+
 # --------------------------------------------------------------------- lookups
 def find_for_device(
     definitions: Iterable[RemoteDefinition],
