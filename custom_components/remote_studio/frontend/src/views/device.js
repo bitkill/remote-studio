@@ -169,10 +169,12 @@ function renderAutomationWarning(automations) {
 // One card per group: target picker (HA's native ha-target-picker, wired
 // up post-render) + dim-step input (only when the group has any dim role).
 function renderGroupCard(group) {
-  const stored = this._currentRemote.groups?.[group.id] || {};
-  const dimStep = Number.isFinite(Number(stored.dim_step))
-    ? Number(stored.dim_step)
-    : 20;
+  // Group config arrives with defaults applied (see core/mappings.py);
+  // a group the user never touched is absent, so fall back to the
+  // server-supplied defaults rather than literals.
+  const stored =
+    this._currentRemote.groups?.[group.id] || this._currentRemote.group_defaults;
+  const dimStep = stored.dim_step;
   const targetSummary = describeTarget(stored.target);
   const dimRow = group.has_dim
     ? `
@@ -185,12 +187,13 @@ function renderGroupCard(group) {
           <output class="dim-step-value">${dimStep}%</output>
         </label>`
     : "";
-  const sceneColor = rgbToHex(stored.scene_color) || "#ffd9a8";
-  const sceneBrightness = Number.isFinite(Number(stored.scene_brightness))
-    ? Number(stored.scene_brightness)
-    : 100;
-  const sceneOverridden =
-    Array.isArray(stored.scene_color) || Number.isFinite(stored.scene_brightness);
+  // No colour by default: the input shows neutral white and is marked
+  // `unset` until the user picks one; the runtime then applies only
+  // brightness.
+  const hasColor = Array.isArray(stored.scene_color);
+  const sceneColor = rgbToHex(stored.scene_color) || "#ffffff";
+  const sceneBrightness = stored.scene_brightness;
+  const sceneOverridden = !stored.scene_is_default;
   const sceneRow = group.has_scene
     ? `
         <div class="scene-config">
@@ -200,14 +203,15 @@ function renderGroupCard(group) {
               class="scene-reset"
               data-scene-reset="${escapeAttr(group.id)}"
               ${sceneOverridden ? "" : "disabled"}
-              title="Reset to default (100% brightness, no colour override)"
+              title="Reset to default brightness, no colour"
               aria-label="Reset scene to default">↺</button>
           </div>
           <div class="scene-config-row">
             <input type="color"
+              class="${hasColor ? "" : "unset"}"
               value="${escapeAttr(sceneColor)}"
               data-scene-color="${escapeAttr(group.id)}"
-              title="Colour applied on long-press" />
+              title="${hasColor ? "Colour applied on long-press" : "No colour — brightness only. Click to pick one."}" />
             <input type="range" min="1" max="100" step="5"
               value="${sceneBrightness}"
               data-scene-brightness="${escapeAttr(group.id)}"
@@ -275,7 +279,8 @@ function renderStateRow(state, button, selectedStateId) {
   const isSelected = state.id === selectedStateId;
   const override = this._currentRemote.overrides?.[button.id]?.[state.id];
   const hasOverride = Array.isArray(override) && override.length > 0;
-  const groupCfg = this._currentRemote.groups?.[button.group] || {};
+  const groupCfg =
+    this._currentRemote.groups?.[button.group] || this._currentRemote.group_defaults;
   const target = groupCfg.target || null;
 
   let summary;
@@ -290,7 +295,7 @@ function renderStateRow(state, button, selectedStateId) {
     summary = "Pick a target above";
     summaryClass = "muted";
   } else {
-    summary = `Default · ${describeRole(state.role, target, groupCfg.dim_step ?? 20, groupCfg.scene_color, groupCfg.scene_brightness)}`;
+    summary = `Default · ${describeRole(state.role, target, groupCfg.dim_step, groupCfg.scene_color, groupCfg.scene_brightness)}`;
   }
 
   return `

@@ -516,6 +516,10 @@ export const css = `
     cursor: pointer;
     flex: 0 0 auto;
   }
+  .scene-config-row input[type="color"].unset {
+    opacity: 0.45;
+    border-style: dashed;
+  }
   .scene-config-row input[type="range"] {
     flex: 1; min-width: 60px;
     -webkit-appearance: none; appearance: none;

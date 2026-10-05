@@ -20,7 +20,7 @@ from homeassistant.loader import async_get_integration
 from .const import DOMAIN
 from .registry import RemoteDefinition, async_get_registry
 from .runtime import SIGNAL_REMOTE_EVENT, resolve_actions
-from .storage import async_get_store
+from .storage import GroupConfig, async_get_store
 
 
 async def async_register(hass: HomeAssistant) -> None:
@@ -239,35 +239,6 @@ def _disabled_required_entities(
     return out
 
 
-def _entity_targets_for(store, device_id: str) -> list[str]:
-    """Return the entity_ids picked across all groups for a device.
-
-    Used by the index list to show what each remote is wired to. Only
-    entity-shaped targets are surfaced — area/device targets live behind
-    the picker but the list view doesn't try to summarise them yet.
-    """
-    cfg = store.device(device_id) or {}
-    out: list[str] = []
-    for group in (cfg.get("groups") or {}).values():
-        target = group.get("target") if isinstance(group, dict) else None
-        if not isinstance(target, dict):
-            continue
-        eid = target.get("entity_id")
-        if isinstance(eid, list):
-            out.extend(str(e) for e in eid if e)
-        elif eid:
-            out.append(str(eid))
-    # Preserve order, drop duplicates.
-    seen: set[str] = set()
-    deduped: list[str] = []
-    for e in out:
-        if e in seen:
-            continue
-        seen.add(e)
-        deduped.append(e)
-    return deduped
-
-
 async def _load_svg_cached(
     hass: HomeAssistant, definition: RemoteDefinition
 ) -> str | None:
@@ -346,7 +317,7 @@ async def ws_list_remotes(
                     "integration": _device_integration(device),
                     "area": _device_area(hass, device),
                     "battery": _find_battery(hass, device.id),
-                    "targets": _entity_targets_for(store, device.id),
+                    "targets": store.data.entity_targets(device.id),
                 }
             )
             continue
@@ -451,7 +422,6 @@ async def ws_get_remote(
     svg_text = await _load_svg_cached(hass, definition)
 
     battery = _find_battery(hass, device.id)
-    device_cfg = store.device(device_id)
 
     connection.send_result(
         msg["id"],
@@ -466,8 +436,7 @@ async def ws_get_remote(
             },
             "definition": _serialise_definition(definition),
             "svg": svg_text,
-            "groups": device_cfg.get("groups", {}),
-            "overrides": device_cfg.get("overrides", {}),
+            **store.data.device_payload(device_id),
             "battery": battery,
             "automations": _automations_for_device(hass, device_id),
             "health": {
@@ -519,8 +488,9 @@ def _find_battery(hass: HomeAssistant, device_id: str) -> dict[str, Any] | None:
         # selector validates on its own when the action runs.
         vol.Optional("target"): vol.Any(None, dict),
         vol.Optional("dim_step"): vol.All(int, vol.Range(min=0, max=100)),
-        # rgb tuple [r, g, b], each 0-255. Used by the `scene` role
-        # default (long-press → brightness in this colour).
+        # Absent scene fields mean "reset to default" — the panel omits
+        # them rather than sending default values (core.mappings owns
+        # the defaults). rgb tuple [r, g, b], each 0-255.
         vol.Optional("scene_color"): vol.All(
             [vol.All(int, vol.Range(min=0, max=255))], vol.Length(min=3, max=3)
         ),
@@ -536,15 +506,12 @@ async def ws_set_group(
     msg: dict[str, Any],
 ) -> None:
     store = await async_get_store(hass)
-    await store.async_set_group(
-        msg["device_id"],
-        msg["group_id"],
-        target=msg.get("target"),
-        dim_step=msg.get("dim_step"),
-        scene_color=msg.get("scene_color"),
-        scene_brightness=msg.get("scene_brightness"),
+    canonical = await store.async_set_group(
+        msg["device_id"], msg["group_id"], GroupConfig.from_message(msg)
     )
-    connection.send_result(msg["id"], {"ok": True})
+    # Echo the canonical config so the panel's local cache matches disk
+    # (e.g. brightness set back to 100 reads as "default" again).
+    connection.send_result(msg["id"], {"ok": True, "group": canonical.to_payload()})
 
 
 @websocket_api.websocket_command(

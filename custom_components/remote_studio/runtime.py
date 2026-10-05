@@ -78,12 +78,11 @@ def resolve_actions(
     role = definition.role_for(button_id, state_id)
     if role == "none":
         return []
-    group_id = definition.group_for(button_id)
-    group = store.group(device_id, group_id)
-    target = group.get("target")
+    group = store.group(device_id, definition.group_for(button_id))
+    target = group.target
     if not target:
         return []
-    dim_step = int(group.get("dim_step") or 20)
+    dim_step = group.dim_step
 
     if role == "turn_on":
         return [{"service": "homeassistant.turn_on", "target": target}]
@@ -108,18 +107,15 @@ def resolve_actions(
             }
         ]
     if role == "scene":
-        # User-configurable brightness (default 100%) in the user's
-        # chosen colour (default: no colour override). Lights without
-        # colour support quietly drop the rgb_color key — HA logs a
-        # warning but applies the brightness fine.
-        brightness = group.get("scene_brightness") or 100
+        # Group's scene brightness, in the user's chosen colour if any
+        # (no colour by default). Lights without colour support drop the
+        # rgb_color key — HA logs a warning but applies the brightness.
         data: dict[str, Any] = {
-            "brightness_pct": int(brightness),
+            "brightness_pct": group.scene_brightness,
             "transition": 0.5,
         }
-        color = group.get("scene_color")
-        if isinstance(color, (list, tuple)) and len(color) == 3:
-            data["rgb_color"] = [int(c) for c in color]
+        if group.scene_color is not None:
+            data["rgb_color"] = list(group.scene_color)
         return [
             {
                 "service": "light.turn_on",

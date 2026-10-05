@@ -7,7 +7,6 @@
  *              cards above and an advanced override editor below.
  */
 import {
-  DEFAULT_DIM_STEP,
   DOMAIN_ICON,
   MDI_PATHS,
   PANEL_BASE,
@@ -754,9 +753,8 @@ export class RemoteStudioPanel extends HTMLElement {
       input.addEventListener("input", (e) => {
         const groupId = e.target.dataset.dimStep;
         const raw = parseInt(e.target.value, 10);
-        const dimStep = Number.isFinite(raw) && raw >= 0 && raw <= 100
-          ? raw
-          : DEFAULT_DIM_STEP;
+        if (!Number.isFinite(raw) || raw < 0 || raw > 100) return;
+        const dimStep = raw;
         const out = e.target.parentElement?.querySelector(".dim-step-value");
         if (out) out.textContent = `${dimStep}%`;
         this._onDimStepChange(groupId, dimStep);
@@ -1120,32 +1118,31 @@ export class RemoteStudioPanel extends HTMLElement {
   _onSceneColorChange(groupId, hex) {
     const rgb = hexToRgb(hex);
     if (!rgb) return;
-    this._mergeGroupLocal(groupId, { scene_color: rgb });
+    this._mergeGroupLocal(groupId, { scene_color: rgb, scene_is_default: false });
     this._scheduleGroupSave(groupId);
     this._refreshStateRows();
     this._refreshSceneResetButton(groupId);
   }
 
   _onSceneBrightnessChange(groupId, pct) {
-    this._mergeGroupLocal(groupId, { scene_brightness: pct });
+    this._mergeGroupLocal(groupId, { scene_brightness: pct, scene_is_default: false });
     this._scheduleGroupSave(groupId);
     this._refreshStateRows();
     this._refreshSceneResetButton(groupId);
   }
 
-  // Reset clears scene_color + scene_brightness from the local cache;
-  // _saveGroup omits absent fields, so the storage layer drops them
-  // and the runtime falls back to its built-in scene defaults
-  // (100% brightness, no colour override). Re-renders the device view
-  // so the colour input + brightness slider snap back to defaults.
+  // Reset snaps the scene fields back to the server-supplied defaults
+  // locally and marks the group as default; _saveGroup then omits the
+  // scene fields, which is the wire contract for "reset" (the backend
+  // owns the default values). Re-renders so the inputs snap back.
   _onSceneReset(groupId) {
     if (!this._currentRemote) return;
-    const groups = { ...(this._currentRemote.groups || {}) };
-    const next = { ...(groups[groupId] || {}) };
-    delete next.scene_color;
-    delete next.scene_brightness;
-    groups[groupId] = next;
-    this._currentRemote = { ...this._currentRemote, groups };
+    const d = this._currentRemote.group_defaults;
+    this._mergeGroupLocal(groupId, {
+      scene_color: d.scene_color,
+      scene_brightness: d.scene_brightness,
+      scene_is_default: true,
+    });
     this._scheduleGroupSave(groupId);
     this._render();
   }
@@ -1155,20 +1152,24 @@ export class RemoteStudioPanel extends HTMLElement {
   _refreshSceneResetButton(groupId) {
     const root = this.shadowRoot;
     if (!root || !this._currentRemote) return;
-    const stored = this._currentRemote.groups?.[groupId] || {};
-    const overridden =
-      Array.isArray(stored.scene_color) ||
-      Number.isFinite(stored.scene_brightness);
+    const stored = this._group(groupId);
     const btn = root.querySelector(
       `[data-scene-reset="${cssEscape(groupId)}"]`,
     );
-    if (btn) btn.disabled = !overridden;
+    if (btn) btn.disabled = stored.scene_is_default;
+  }
+
+  // Group config with defaults applied: the backend ships every field
+  // for groups the user touched, and `group_defaults` for the rest.
+  _group(groupId) {
+    const remote = this._currentRemote;
+    return remote?.groups?.[groupId] || remote?.group_defaults || {};
   }
 
   _mergeGroupLocal(groupId, patch) {
     if (!this._currentRemote) return;
     const groups = { ...(this._currentRemote.groups || {}) };
-    groups[groupId] = { ...(groups[groupId] || {}), ...patch };
+    groups[groupId] = { ...this._group(groupId), ...patch };
     this._currentRemote = { ...this._currentRemote, groups };
   }
 
@@ -1187,26 +1188,29 @@ export class RemoteStudioPanel extends HTMLElement {
 
   async _saveGroup(groupId) {
     if (!this._currentRemote) return;
-    const stored = this._currentRemote.groups?.[groupId] || {};
+    const stored = this._group(groupId);
     const msg = {
       type: WS_SET_GROUP,
       device_id: this._currentRemote.device.id,
       group_id: groupId,
       target: stored.target || null,
-      dim_step: stored.dim_step ?? DEFAULT_DIM_STEP,
+      dim_step: stored.dim_step,
     };
-    if (Array.isArray(stored.scene_color) && stored.scene_color.length === 3) {
-      msg.scene_color = stored.scene_color;
-    }
-    if (
-      Number.isFinite(stored.scene_brightness) &&
-      stored.scene_brightness >= 1 &&
-      stored.scene_brightness <= 100
-    ) {
+    // Omitting the scene fields is the wire contract for "default".
+    if (!stored.scene_is_default) {
+      if (Array.isArray(stored.scene_color)) msg.scene_color = stored.scene_color;
       msg.scene_brightness = stored.scene_brightness;
     }
     try {
-      await this._hass.connection.sendMessagePromise(msg);
+      const result = await this._hass.connection.sendMessagePromise(msg);
+      // Adopt the canonical config (e.g. brightness dragged back to the
+      // default reads as default again) and sync the reset button.
+      if (result?.group && this._currentRemote) {
+        const groups = { ...(this._currentRemote.groups || {}) };
+        groups[groupId] = result.group;
+        this._currentRemote = { ...this._currentRemote, groups };
+        this._refreshSceneResetButton(groupId);
+      }
       this._showToast("Saved");
     } catch (err) {
       this._showToast(
@@ -1228,8 +1232,8 @@ export class RemoteStudioPanel extends HTMLElement {
     const def = this._currentRemote?.definition;
     const button = def?.buttons?.find((b) => b.id === this._selectedButtonId);
     if (!button) return;
-    const groupCfg = this._currentRemote?.groups?.[button.group] || {};
-    const dimStep = groupCfg.dim_step ?? DEFAULT_DIM_STEP;
+    const groupCfg = this._group(button.group);
+    const dimStep = groupCfg.dim_step;
     const target = groupCfg.target;
     const sceneColor = groupCfg.scene_color;
     const sceneBrightness = groupCfg.scene_brightness;
