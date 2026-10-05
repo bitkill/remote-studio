@@ -28,7 +28,8 @@ from homeassistant.core import Context, Event, HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.config_validation import SCRIPT_SCHEMA
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.entity_registry import EVENT_ENTITY_REGISTRY_UPDATED
+from homeassistant.helpers.event import async_call_later, async_track_state_change_event
 from homeassistant.helpers.script import Script
 
 from .const import DOMAIN
@@ -43,6 +44,18 @@ _LOGGER = logging.getLogger(__name__)
 SIGNAL_REMOTE_EVENT = f"{DOMAIN}:remote_event"
 
 Emit = Callable[[RemoteEvent], None]
+
+
+def _all_devices(device_reg: dr.DeviceRegistry) -> list[dr.DeviceEntry]:
+    """Every device entry. Iterating ``devices`` yields entries on current
+    HA and ids on older releases; ``.values()`` is deprecated on both."""
+    out: list[dr.DeviceEntry] = []
+    for item in device_reg.devices:
+        entry = item if hasattr(item, "id") else device_reg.async_get(item)
+        if entry is not None:
+            out.append(entry)
+    return out
+
 DefsForDevice = Callable[[str], list[RemoteDefinition]]
 
 
@@ -132,7 +145,7 @@ class Z2mAdapter(SourceAdapter):
             if registry.async_get(cached) is not None:
                 return cached
             self._name_cache.pop(friendly_name, None)
-        for device in registry.devices.values():
+        for device in _all_devices(registry):
             if device.name_by_user == friendly_name or device.name == friendly_name:
                 self._name_cache[friendly_name] = device.id
                 return device.id
@@ -155,6 +168,10 @@ class EntityStateAdapter(SourceAdapter):
         super().__init__(hass, defs_for_device)
         self._index: dict[str, tuple[str, int]] = {}
 
+    @property
+    def indexed_entity_ids(self) -> frozenset[str]:
+        return frozenset(self._index)
+
     def resync(self) -> None:
         self.stop()
         self._hass.async_create_task(self._subscribe(), f"remote_studio_resync_{self.source}")
@@ -163,7 +180,7 @@ class EntityStateAdapter(SourceAdapter):
         self._index.clear()
         device_reg = dr.async_get(self._hass)
         entity_reg = er.async_get(self._hass)
-        for device in device_reg.devices.values():
+        for device in _all_devices(device_reg):
             if not any(self.source in d.sources for d in self._defs_for_device(device.id)):
                 continue
             for entry in er.async_entries_for_device(
@@ -289,21 +306,72 @@ class EventRuntime:
         self._adapters: list[SourceAdapter] = [
             cls(hass, self.definitions_for) for cls in ADAPTERS
         ]
+        self._watched_platforms = frozenset(
+            a.platform for a in self._adapters if isinstance(a, EntityStateAdapter)
+        )
+        self._unsub_registry: Callable[[], None] | None = None
+        self._resync_handle: Callable[[], None] | None = None
 
     async def async_start(self) -> None:
         self._store = await async_get_store(self._hass)
         self._registry = await async_get_registry(self._hass)
         for adapter in self._adapters:
             await adapter.start(self._on_event)
+        # Devices paired after startup register their entities later than
+        # our discovery pass; re-scan when the entity registry changes.
+        self._unsub_registry = self._hass.bus.async_listen(
+            EVENT_ENTITY_REGISTRY_UPDATED, self._on_entity_registry_updated
+        )
 
     async def async_stop(self) -> None:
+        if self._unsub_registry is not None:
+            self._unsub_registry()
+            self._unsub_registry = None
+        if self._resync_handle is not None:
+            self._resync_handle()
+            self._resync_handle = None
         for adapter in self._adapters:
             adapter.stop()
 
     def resync(self) -> None:
-        """Re-run entity discovery on every adapter (after enabling entities)."""
+        """Re-run entity discovery on every adapter (after enabling entities,
+        pairing a layout, or a registry change)."""
         for adapter in self._adapters:
             adapter.resync()
+
+    @callback
+    def _on_entity_registry_updated(self, event: Event) -> None:
+        data = event.data
+        entity_id = data.get("entity_id")
+        entry = er.async_get(self._hass).async_get(entity_id) if entity_id else None
+        indexed = {
+            eid
+            for a in self._adapters
+            if isinstance(a, EntityStateAdapter)
+            for eid in a.indexed_entity_ids
+        }
+        if ev.registry_change_needs_resync(
+            data.get("action"),
+            entity_id,
+            entry.platform if entry else None,
+            self._watched_platforms,
+            indexed,
+        ):
+            self._schedule_resync()
+
+    def _schedule_resync(self) -> None:
+        """Coalesce bursts of registry changes (a new device registers
+        several entities at once) into one re-scan."""
+        if self._resync_handle is not None:
+            self._resync_handle()
+
+        @callback
+        def _run(_now: Any) -> None:
+            self._resync_handle = None
+            _LOGGER.debug("Entity registry changed; re-discovering source entities")
+            self.resync()
+
+        self._resync_handle = async_call_later(self._hass, 2.0, _run)
 
     # ------------------------------------------------------------- lookup
     def definitions_for(self, device_id: str) -> list[RemoteDefinition]:

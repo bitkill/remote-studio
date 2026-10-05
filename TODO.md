@@ -24,12 +24,10 @@ with the magick commands in the [README](README.md#branding).
 Matter event-entity listening landed in v0.2.0 but has two known sharp
 edges:
 
-1. Entity-backed adapters (matter, matter_position, xiaomi_ble) discover
-   their entities **once at start**. A remote paired *after* the
-   integration is running isn't subscribed until a reload or until the
-   panel's "enable sensors" button calls `runtime.resync()`. Fix: listen
-   for `entity_registry_updated` and call `runtime.resync()`; every
-   adapter already supports it.
+1. ~~Entity-backed adapters discovered their entities once at start.~~
+   Done: the runtime listens for `entity_registry_updated` and re-scans
+   (debounced 2 s) when an entity on one of our platforms appears or a
+   watched one changes. Reproduced on a Yeelight dimmer added after boot.
 2. ~~Endpoint mapping sorted entities by unique_id.~~ Done: the endpoint
    is parsed from the unique_id (`core/events.py:matter_endpoint_from_unique_id`).
 

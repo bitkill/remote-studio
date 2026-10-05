@@ -105,3 +105,27 @@ def test_decode_position_edge(old, new, expect):
 )
 def test_matter_endpoint_from_unique_id(uid, expect):
     assert events.matter_endpoint_from_unique_id(uid) == expect
+
+
+@pytest.mark.parametrize(
+    ("action", "entity_id", "platform", "expect"),
+    [
+        ("create", "event.new_dimmer", "xiaomi_ble", True),
+        ("create", "event.new_button", "matter", True),
+        ("update", "sensor.pos_1", "matter", True),
+        ("create", "light.bulb", "hue", False),
+        ("update", "sensor.temp", "xiaomi_ble", True),  # same platform: cheap to rescan
+        ("remove", "event.old_dimmer", "xiaomi_ble", False),  # never indexed, gone anyway
+        ("remove", "event.watched", None, True),  # was indexed → drop subscription
+        ("update", "event.watched", None, True),
+        ("bogus", "event.new_dimmer", "xiaomi_ble", False),
+        ("create", None, "xiaomi_ble", False),
+    ],
+)
+def test_registry_change_needs_resync(action, entity_id, platform, expect):
+    assert (
+        events.registry_change_needs_resync(
+            action, entity_id, platform, {"matter", "xiaomi_ble"}, {"event.watched"}
+        )
+        is expect
+    )

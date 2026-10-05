@@ -129,3 +129,25 @@ def matter_endpoint_from_unique_id(unique_id: str | None) -> int | None:
         return int(parts[3])
     except (ValueError, TypeError):
         return None
+
+
+def registry_change_needs_resync(
+    action: str | None,
+    entity_id: str | None,
+    platform: str | None,
+    watched_platforms: frozenset[str] | set[str],
+    indexed_entity_ids: frozenset[str] | set[str],
+) -> bool:
+    """Should an entity-registry change make the adapters re-discover?
+
+    Entity-backed sources (matter, matter_position, xiaomi_ble) index
+    their entities at start. A device paired afterwards registers its
+    entities later, so a create/update on one of our platforms, or any
+    change to an entity we already watch, means re-scan.
+    """
+    if action not in ("create", "update", "remove") or not entity_id:
+        return False
+    if entity_id in indexed_entity_ids:
+        return True
+    return action != "remove" and platform in watched_platforms
+
