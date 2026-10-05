@@ -211,6 +211,7 @@ export class RemoteStudioPanel extends HTMLElement {
     this.attachShadow({ mode: "open" });
 
     this._hass = null;
+    this._narrow = false;
     this._route = null;
     this._view = "index"; // 'index' | 'device'
     this._listLoaded = false;
@@ -304,6 +305,7 @@ export class RemoteStudioPanel extends HTMLElement {
     // On subsequent updates, push hass through to any live ha-target-picker
     // elements so their state reflects the latest entity registry.
     this._syncTargetPickerHass();
+    this._syncSubpage();
   }
 
   get hass() {
@@ -317,6 +319,15 @@ export class RemoteStudioPanel extends HTMLElement {
 
   get route() {
     return this._route;
+  }
+
+  set narrow(value) {
+    this._narrow = value;
+    this._syncSubpage();
+  }
+
+  get narrow() {
+    return this._narrow;
   }
 
   // ============================================================ data load
@@ -579,15 +590,24 @@ export class RemoteStudioPanel extends HTMLElement {
       <style>${css}</style>
       ${this._view === "index" ? this._renderIndex() : this._renderDevice()}
     `;
+    this._syncSubpage();
     if (this._view === "index") {
       this._wireIndex();
     } else {
-      const back = root.querySelector(".back");
-      if (back) back.addEventListener("click", () => this._backToIndex());
       this._wireSvg();
       this._wireGroupCards();
       this._wireButtonList();
       this._wireHealthFix();
+    }
+  }
+
+  _syncSubpage() {
+    const el = this.shadowRoot?.querySelector("hass-subpage");
+    if (!el) return;
+    el.hass = this._hass;
+    el.narrow = this._narrow ?? window.innerWidth < 870;
+    if (this._view === "device") {
+      el.backCallback = () => this._backToIndex();
     }
   }
 

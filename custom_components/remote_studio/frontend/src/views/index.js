@@ -34,44 +34,42 @@ export function renderIndex() {
     .map((c) => renderCandidate(c, layoutOptions))
     .join("");
 
-  const versionTag = this._version
-    ? ` <span class="version-tag">v${escapeHtml(this._version)}</span>`
-    : "";
+  const headerText = `Remote Studio${this._version ? ` v${this._version}` : ""}`;
 
   return `
-    <header class="page-header">
-      <h1>Remote Studio${versionTag}</h1>
-      <p class="lead">Configure your Zigbee and Matter remotes visually.</p>
-    </header>
-    ${this._error ? `<div class="error">${escapeHtml(this._error)}</div>` : ""}
-    <section>
-      <div class="section-head">
-        <h2>Discovered remotes</h2>
+    <hass-subpage header="${escapeAttr(headerText)}">
+      <div class="page-content">
+        ${this._error ? `<div class="error">${escapeHtml(this._error)}</div>` : ""}
+        <section>
+          <div class="section-head">
+            <h2>Discovered remotes</h2>
+            ${
+              total > 0
+                ? `<div class="filter-bar">
+                    ${renderSearchInput(this._filterText)}
+                    <span class="filter-count">${
+                      filtered
+                        ? `${matches.length} of ${total}`
+                        : `${total}`
+                    }</span>
+                  </div>`
+                : ""
+            }
+          </div>
+          ${renderRemotesGrid(remotes, total, matches.length, filtered)}
+        </section>
         ${
-          total > 0
-            ? `<div class="filter-bar">
-                ${renderSearchInput(this._filterText)}
-                <span class="filter-count">${
-                  filtered
-                    ? `${matches.length} of ${total}`
-                    : `${total}`
-                }</span>
-              </div>`
+          this._candidates.length
+            ? `<section>
+              <h2>Unmatched Zigbee/Matter devices</h2>
+              <p class="lead">These devices are paired but no layout matches automatically. Pick one to try.</p>
+              <div class="candidate-list">${candidates}</div>
+            </section>`
             : ""
         }
+        ${renderEventLogIndex.call(this)}
       </div>
-      ${renderRemotesGrid(remotes, total, matches.length, filtered)}
-    </section>
-    ${
-      this._candidates.length
-        ? `<section>
-          <h2>Unmatched Zigbee/Matter devices</h2>
-          <p class="lead">These devices are paired but no layout matches automatically. Pick one to try.</p>
-          <div class="candidate-list">${candidates}</div>
-        </section>`
-        : ""
-    }
-    ${renderEventLogIndex.call(this)}
+    </hass-subpage>
   `;
 }
 

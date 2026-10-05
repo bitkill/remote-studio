@@ -5,9 +5,15 @@
 export const css = `
   :host {
     display: block;
-    padding: 24px;
+    height: 100%;
     color: var(--primary-text-color);
     font-family: var(--paper-font-body1_-_font-family, system-ui, sans-serif);
+  }
+  hass-subpage {
+    height: 100%;
+  }
+  .page-content {
+    padding: 24px;
   }
   h1 { margin: 0; font-size: 1.6rem; font-weight: 500; }
   .version-tag {
@@ -24,20 +30,11 @@ export const css = `
     font-variant-numeric: tabular-nums;
   }
   h2 { font-size: 1.05rem; margin: 0 0 12px; font-weight: 500; }
-  .page-header { margin-bottom: 24px; }
-  .page-header.with-back { display: flex; gap: 16px; align-items: center; justify-content: flex-start; }
-  .header-info { flex: 1; }
   .lead { margin: 4px 0 0; opacity: 0.75; font-size: 0.95rem; }
-  .back {
-    background: var(--secondary-background-color, #f4f4f4);
-    border: 1px solid var(--divider-color, #e0e0e0);
-    color: inherit;
-    padding: 6px 14px;
-    border-radius: 999px;
-    cursor: pointer;
-    font: inherit;
+  .device-meta {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    margin-bottom: 20px;
   }
-  .back:hover { filter: brightness(0.96); }
   section { margin-bottom: 32px; }
   .section-head {
     display: flex; align-items: center; gap: 16px;
@@ -832,10 +829,7 @@ export const css = `
     flex-shrink: 0;
   }
 
-  /* Cog icon next to the device name → links to the HA device page. */
-  .device-title {
-    display: inline-flex; align-items: center; gap: 8px;
-  }
+  /* Cog icon in the hass-subpage toolbar → links to the HA device page. */
   .device-cog {
     display: inline-flex; align-items: center; justify-content: center;
     width: 28px; height: 28px;
