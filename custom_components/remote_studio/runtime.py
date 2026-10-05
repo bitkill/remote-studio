@@ -180,7 +180,7 @@ class EventRuntime:
             return
         args = data.get("args") if isinstance(data.get("args"), dict) else {}
         for definition in self._defs_for_device(device_id):
-            match = definition.match_zha(command, args)
+            match = definition.match("zha", {"command": command, "args": args})
             if match is not None:
                 button_id, state_id = match
                 self._dispatch(definition, device_id, button_id, state_id)
@@ -228,7 +228,7 @@ class EventRuntime:
         if not device_id:
             return
         for definition in self._defs_for_device(device_id):
-            match = definition.match_z2m(action)
+            match = definition.match("z2m", {"action": action})
             if match is not None:
                 button_id, state_id = match
                 self._dispatch(definition, device_id, button_id, state_id)
@@ -314,7 +314,10 @@ class EventRuntime:
         for definition in self._registry.find_for_device(
             device.manufacturer, device.model
         ):
-            match = definition.match_matter(endpoint, event_type, attrs)
+            match = definition.match(
+                "matter",
+                {"endpoint": endpoint, "event_type": event_type, "attributes": attrs},
+            )
             if match is not None:
                 button_id, state_id = match
                 self._dispatch(definition, device_id, button_id, state_id)
@@ -415,7 +418,9 @@ class EventRuntime:
         for definition in self._registry.find_for_device(
             device.manufacturer, device.model
         ):
-            match = definition.match_matter_position(endpoint, edge)
+            match = definition.match(
+                "matter_position", {"endpoint": endpoint, "edge": edge}
+            )
             if match is not None:
                 button_id, state_id = match
                 self._dispatch(definition, device_id, button_id, state_id)
@@ -473,7 +478,9 @@ class EventRuntime:
         for definition in self._registry.find_for_device(
             device.manufacturer, device.model
         ):
-            match = definition.match_xiaomi_ble(event_type, attrs)
+            match = definition.match(
+                "xiaomi_ble", {"event_type": event_type, "attributes": attrs}
+            )
             if match is not None:
                 button_id, state_id = match
                 self._dispatch(definition, device_id, button_id, state_id)

@@ -37,7 +37,13 @@ Two files in `custom_components/remote_studio/remotes/`:
 1. `<id>.yaml` — declares buttons + states + per-source signatures (`zha:` / `z2m:` / `matter:`).
 2. `<id>.svg` — hotspots are `<g id="button-<button_id>">` groups; the panel attaches handlers from those IDs.
 
-No Python changes needed. Use `make events` to capture real signatures off the user's device while pairing.
+No Python changes needed. Use `make events` to capture real signatures off the user's device while pairing. `make check` builds every YAML through the real schema, verifies the SVG has a `button-<id>` hotspot per button, and rejects two states claiming the same signature.
+
+## Backend layout
+
+- `core/` — HA-free (see `docs/adr/0001-ha-free-core.md`): `definitions.py` (schema, `build()`, `match(source, payload)`, `find_for_device()`), `mappings.py` (storage shape, migration). Tested in `tests/`.
+- HA-side glue: `registry.py` (loads YAML, caches), `storage.py` (HA Store), `runtime.py` (event subscriptions → match → actions), `api.py` (websocket commands), `panel.py` (sidebar registration).
+- Domain words are in `GLOSSARY.md`; use them in code and docs.
 
 ## Frontend layout
 

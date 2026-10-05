@@ -39,7 +39,6 @@ def _serialise_definition(definition: RemoteDefinition) -> dict[str, Any]:
     return {
         "id": definition.id,
         "name": definition.name,
-        "manufacturer": definition.manufacturer,
         "models": list(definition.models),
         "battery": definition.battery,
         "groups": definition.groups(),
