@@ -1,22 +1,25 @@
 """Event runtime for Remote Studio.
 
-Listens for remote events from each supported integration and, on a match,
-runs the user-configured action list via Home Assistant's Script helper.
+One *source adapter* per integration turns what HA hands us into a
+``core.events.RemoteEvent``; the runtime matches it against the device's
+definitions and runs the resolved action list via HA's Script helper.
 
-Currently supported integrations:
-  * ZHA — direct subscription to the ``zha_event`` bus event.
-  * Zigbee2MQTT — MQTT subscription to ``zigbee2mqtt/<friendly_name>``;
-    the friendly name is resolved to a HA device_id via the device registry.
-  * Matter — placeholder; Matter exposes button presses as event entities,
-    each with their own attribute updates. v2 work.
+Adapters (all with ``start(emit)`` / ``stop()`` / ``resync()``):
+  * ZHA — ``zha_event`` bus events (device id comes with the event).
+  * Zigbee2MQTT — MQTT ``zigbee2mqtt/<friendly_name>``; the friendly name
+    is resolved to a device id via the device registry.
+  * Matter — ``event`` entities, one per endpoint (debounced by HA).
+  * Matter position — ``current_switch_position`` sensors, low latency,
+    disabled by default in HA (the panel offers a one-click enable, which
+    calls ``resync()``).
+  * Xiaomi BLE — ``event`` entities from the xiaomi_ble integration.
 
 Every match also dispatches ``remote_studio:remote_event`` via HA's
-dispatcher so the WebSocket API can forward live events to the panel.
+dispatcher so the websocket API can forward live events to the panel.
 """
 
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import Callable
 from typing import Any
@@ -29,33 +32,18 @@ from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.script import Script
 
 from .const import DOMAIN
-from .registry import DefinitionRegistry, RemoteDefinition, async_get_registry
+from .core import events as ev
+from .core.definitions import RemoteDefinition
+from .core.events import RemoteEvent
+from .registry import DefinitionRegistry, async_get_registry
 from .storage import MappingStore, async_get_store
 
 _LOGGER = logging.getLogger(__name__)
 
-ZHA_EVENT = "zha_event"
 SIGNAL_REMOTE_EVENT = f"{DOMAIN}:remote_event"
-Z2M_TOPIC = "zigbee2mqtt/+"
 
-
-def _matter_endpoint_from_unique_id(unique_id: str | None) -> int | None:
-    """Pull the endpoint number out of a matter entity's unique_id.
-
-    The matter integration formats unique_ids as
-    `<bridge>-<node>-MatterNodeDevice-<endpoint>-<cluster>-…`. The
-    endpoint sits at index 3 when split on `-`. Returns None if the
-    layout doesn't look right (defensive — older HA may differ).
-    """
-    if not unique_id:
-        return None
-    parts = unique_id.split("-")
-    if len(parts) < 4:
-        return None
-    try:
-        return int(parts[3])
-    except (ValueError, TypeError):
-        return None
+Emit = Callable[[RemoteEvent], None]
+DefsForDevice = Callable[[str], list[RemoteDefinition]]
 
 
 def resolve_actions(
@@ -69,7 +57,7 @@ def resolve_actions(
 
     Resolution order:
       1. user override (Advanced editor) — wins if present.
-      2. role-based default — built from the group's target + dim_step.
+      2. role-based default — built from the group's config.
       3. nothing — returns [].
     """
     override = store.override(device_id, button_id, state_id)
@@ -126,64 +114,63 @@ def resolve_actions(
     return []
 
 
-class EventRuntime:
-    """Owns event subscriptions and dispatches matched actions."""
+# ================================================================== adapters
+class SourceAdapter:
+    """Base for one integration's subscription. Subclasses override the hooks."""
 
-    def __init__(self, hass: HomeAssistant) -> None:
+    source: str = ""
+
+    def __init__(self, hass: HomeAssistant, defs_for_device: DefsForDevice) -> None:
         self._hass = hass
-        self._unsubs: list[Callable[[], None]] = []
-        self._store: MappingStore | None = None
-        self._registry: DefinitionRegistry | None = None
-        self._z2m_name_cache: dict[str, str] = {}
-        # entity_id -> (device_id, endpoint_index)
-        self._matter_entity_index: dict[str, tuple[str, int]] = {}
-        # entity_id -> device_id (Xiaomi BLE has no endpoint indexing)
-        self._xiaomi_ble_entity_index: dict[str, str] = {}
-        # entity_id -> (device_id, endpoint_index) for Matter
-        # current_switch_position sensors. Same numbering as event entities.
-        self._matter_position_index: dict[str, tuple[str, int]] = {}
-        # Tracked separately from _unsubs so we can tear down + rebuild
-        # this single subscription when entities get enabled/disabled at
-        # runtime (the rest of _unsubs only matters at shutdown).
-        self._mp_unsub: Callable[[], None] | None = None
+        self._defs_for_device = defs_for_device
+        self._emit: Emit | None = None
+        self._unsub: Callable[[], None] | None = None
 
-    async def async_start(self) -> None:
-        self._store = await async_get_store(self._hass)
-        self._registry = await async_get_registry(self._hass)
-        self._unsubs.append(
-            self._hass.bus.async_listen(ZHA_EVENT, self._handle_zha_event)
-        )
-        await self._setup_mqtt()
-        self._setup_matter()
-        self._setup_matter_position()
-        self._setup_xiaomi_ble()
+    async def start(self, emit: Emit) -> None:
+        self._emit = emit
+        await self._subscribe()
 
-    async def async_stop(self) -> None:
-        for unsub in self._unsubs:
+    def stop(self) -> None:
+        if self._unsub is not None:
             try:
-                unsub()
+                self._unsub()
             except Exception:  # noqa: BLE001
-                _LOGGER.debug("Error while unsubscribing", exc_info=True)
-        self._unsubs.clear()
+                _LOGGER.debug("%s: unsubscribe raised", self.source, exc_info=True)
+            self._unsub = None
 
-    # ---------------------------------------------------------------- ZHA
+    def resync(self) -> None:
+        """Re-discover and re-subscribe. No-op for adapters without discovery."""
+
+    async def _subscribe(self) -> None:
+        raise NotImplementedError
+
+    def _fire(self, event: RemoteEvent) -> None:
+        if self._emit is not None:
+            self._emit(event)
+
+
+class ZhaAdapter(SourceAdapter):
+    source = "zha"
+
+    async def _subscribe(self) -> None:
+        self._unsub = self._hass.bus.async_listen("zha_event", self._on_event)
+
     @callback
-    def _handle_zha_event(self, event: Event) -> None:
-        data = event.data
-        device_id = data.get("device_id")
-        command = data.get("command")
-        if not device_id or not command:
-            return
-        args = data.get("args") if isinstance(data.get("args"), dict) else {}
-        for definition in self._defs_for_device(device_id):
-            match = definition.match("zha", {"command": command, "args": args})
-            if match is not None:
-                button_id, state_id = match
-                self._dispatch(definition, device_id, button_id, state_id)
-                return
+    def _on_event(self, event: Event) -> None:
+        decoded = ev.decode_zha(event.data)
+        if decoded is not None:
+            self._fire(decoded)
 
-    # ---------------------------------------------------------------- Z2M
-    async def _setup_mqtt(self) -> None:
+
+class Z2mAdapter(SourceAdapter):
+    source = "z2m"
+    TOPIC = "zigbee2mqtt/+"
+
+    def __init__(self, hass: HomeAssistant, defs_for_device: DefsForDevice) -> None:
+        super().__init__(hass, defs_for_device)
+        self._name_cache: dict[str, str] = {}
+
+    async def _subscribe(self) -> None:
         try:
             from homeassistant.components import mqtt
         except ImportError:
@@ -192,323 +179,215 @@ class EventRuntime:
             _LOGGER.debug("MQTT not configured; skipping Z2M subscription")
             return
         try:
-            unsub = await mqtt.async_subscribe(
-                self._hass, Z2M_TOPIC, self._handle_z2m_message
-            )
+            self._unsub = await mqtt.async_subscribe(self._hass, self.TOPIC, self._on_message)
         except Exception as err:  # noqa: BLE001 — depends on user MQTT health
             _LOGGER.debug("MQTT subscribe failed: %s", err)
-            return
-        self._unsubs.append(unsub)
 
     @callback
-    def _handle_z2m_message(self, msg: Any) -> None:
-        topic: str = getattr(msg, "topic", "")
-        parts = topic.split("/", 2)
-        if len(parts) < 2:
+    def _on_message(self, msg: Any) -> None:
+        decoded = ev.decode_z2m(getattr(msg, "topic", ""), getattr(msg, "payload", None))
+        if decoded is None:
             return
-        friendly_name = parts[1]
-        if len(parts) > 2:
-            return  # ignore subtopics like .../availability or .../set
-        try:
-            payload = (
-                json.loads(msg.payload) if isinstance(msg.payload, str) else msg.payload
-            )
-        except (TypeError, ValueError):
-            return
-        if not isinstance(payload, dict):
-            return
-        action = payload.get("action")
-        if not action:
-            return
-        device_id = self._z2m_device_id(friendly_name)
-        if not device_id:
-            return
-        for definition in self._defs_for_device(device_id):
-            match = definition.match("z2m", {"action": action})
-            if match is not None:
-                button_id, state_id = match
-                self._dispatch(definition, device_id, button_id, state_id)
-                return
+        friendly_name, action = decoded
+        device_id = self._device_id(friendly_name)
+        if device_id:
+            self._fire(RemoteEvent(device_id, "z2m", {"action": action}))
 
-    def _z2m_device_id(self, friendly_name: str) -> str | None:
-        cached = self._z2m_name_cache.get(friendly_name)
-        if cached is not None:
-            # Verify the cached id still exists, otherwise refresh.
-            if dr.async_get(self._hass).async_get(cached) is not None:
-                return cached
-            self._z2m_name_cache.pop(friendly_name, None)
+    def _device_id(self, friendly_name: str) -> str | None:
         registry = dr.async_get(self._hass)
+        cached = self._name_cache.get(friendly_name)
+        if cached is not None:
+            if registry.async_get(cached) is not None:
+                return cached
+            self._name_cache.pop(friendly_name, None)
         for device in registry.devices.values():
             if device.name_by_user == friendly_name or device.name == friendly_name:
-                self._z2m_name_cache[friendly_name] = device.id
+                self._name_cache[friendly_name] = device.id
                 return device.id
         return None
 
-    # -------------------------------------------------------------- Matter
-    def _setup_matter(self) -> None:
-        """Discover Matter event entities for matched devices and subscribe.
 
-        Matter exposes one ``event`` entity per physical button (one per
-        endpoint). HA materialises the Matter SwitchClusterEvents as state
-        changes on these entities; the latest event_type lives in
-        ``new_state.attributes['event_type']``.
+class EntityStateAdapter(SourceAdapter):
+    """Sources that surface as HA entities whose state changes carry the gesture.
 
-        Endpoint comes from the unique_id (`<…>-MatterNodeDevice-<n>-…`)
-        so the same number lines up with the matter_position sensors.
-        """
-        if self._registry is None:
-            return
+    Discovery: every device with a definition that uses this source has
+    its matching entities indexed (entity_id → (device_id, endpoint)) and
+    a single state-change subscription covers them all. ``resync()``
+    rebuilds that index, e.g. after the panel enables disabled entities.
+    """
+
+    domain: str = "event"
+    platform: str = ""
+
+    def __init__(self, hass: HomeAssistant, defs_for_device: DefsForDevice) -> None:
+        super().__init__(hass, defs_for_device)
+        self._index: dict[str, tuple[str, int]] = {}
+
+    def resync(self) -> None:
+        self.stop()
+        self._hass.async_create_task(self._subscribe(), f"remote_studio_resync_{self.source}")
+
+    async def _subscribe(self) -> None:
+        self._index.clear()
         device_reg = dr.async_get(self._hass)
         entity_reg = er.async_get(self._hass)
-        watched: list[str] = []
-
         for device in device_reg.devices.values():
-            defs = self._registry.find_for_device(device.manufacturer, device.model)
-            if not defs or not any(d.has_matter for d in defs):
+            if not any(self.source in d.sources for d in self._defs_for_device(device.id)):
                 continue
             for entry in er.async_entries_for_device(
                 entity_reg, device.id, include_disabled_entities=False
             ):
-                if entry.domain != "event" or entry.platform != "matter":
+                if entry.domain != self.domain or entry.platform != self.platform:
                     continue
-                endpoint = _matter_endpoint_from_unique_id(entry.unique_id)
+                endpoint = self._endpoint_for(entry)
                 if endpoint is None:
                     continue
-                self._matter_entity_index[entry.entity_id] = (device.id, endpoint)
-                watched.append(entry.entity_id)
+                self._index[entry.entity_id] = (device.id, endpoint)
+        if self._index:
+            self._unsub = async_track_state_change_event(
+                self._hass, list(self._index), self._on_state_change
+            )
 
-        if not watched:
-            return
-        unsub = async_track_state_change_event(
-            self._hass, watched, self._handle_matter_state_change
-        )
-        self._unsubs.append(unsub)
+    def _endpoint_for(self, entry: er.RegistryEntry) -> int | None:
+        """Endpoint for this entity, or None to skip it. Default: no endpoints."""
+        return 0
+
+    def _decode(self, old_state: Any, new_state: Any, endpoint: int) -> dict[str, Any] | None:
+        raise NotImplementedError
 
     @callback
-    def _handle_matter_state_change(self, event: Event) -> None:
+    def _on_state_change(self, event: Event) -> None:
         new_state = event.data.get("new_state")
         old_state = event.data.get("old_state")
-        if new_state is None:
+        # old_state None is HA's initial announcement on startup, not a press.
+        if new_state is None or old_state is None:
             return
-        # Skip the initial "no state" announcement on startup.
-        if old_state is None:
-            return
-        entity_id = new_state.entity_id
-        attrs = dict(new_state.attributes or {})
-        event_type = attrs.get("event_type")
-        if not event_type:
-            return
-        meta = self._matter_entity_index.get(entity_id)
+        meta = self._index.get(new_state.entity_id)
         if meta is None:
             return
         device_id, endpoint = meta
+        payload = self._decode(old_state, new_state, endpoint)
+        if payload is not None:
+            self._fire(RemoteEvent(device_id, self.source, payload))
+
+
+class MatterEventAdapter(EntityStateAdapter):
+    source = "matter"
+    domain = "event"
+    platform = "matter"
+
+    def _endpoint_for(self, entry: er.RegistryEntry) -> int | None:
+        return ev.matter_endpoint_from_unique_id(entry.unique_id)
+
+    def _decode(self, old_state: Any, new_state: Any, endpoint: int) -> dict[str, Any] | None:
+        payload = ev.decode_event_entity(new_state.attributes)
+        if payload is not None:
+            payload["endpoint"] = endpoint
+        return payload
+
+
+class MatterPositionAdapter(EntityStateAdapter):
+    source = "matter_position"
+    domain = "sensor"
+    platform = "matter"
+
+    def _endpoint_for(self, entry: er.RegistryEntry) -> int | None:
+        if "current_switch_position" not in (entry.entity_id or ""):
+            return None
+        return ev.matter_endpoint_from_unique_id(entry.unique_id)
+
+    def _decode(self, old_state: Any, new_state: Any, endpoint: int) -> dict[str, Any] | None:
+        edge = ev.decode_position_edge(old_state.state, new_state.state)
+        if edge is None:
+            return None
+        return {"endpoint": endpoint, "edge": edge}
+
+
+class XiaomiBleAdapter(EntityStateAdapter):
+    source = "xiaomi_ble"
+    domain = "event"
+    platform = "xiaomi_ble"
+
+    def _decode(self, old_state: Any, new_state: Any, endpoint: int) -> dict[str, Any] | None:
+        return ev.decode_event_entity(new_state.attributes)
+
+
+ADAPTERS: tuple[type[SourceAdapter], ...] = (
+    ZhaAdapter,
+    Z2mAdapter,
+    MatterEventAdapter,
+    MatterPositionAdapter,
+    XiaomiBleAdapter,
+)
+
+
+# =================================================================== runtime
+class EventRuntime:
+    """Owns the source adapters and dispatches matched events to actions."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self._hass = hass
+        self._store: MappingStore | None = None
+        self._registry: DefinitionRegistry | None = None
+        self._adapters: list[SourceAdapter] = [
+            cls(hass, self.definitions_for) for cls in ADAPTERS
+        ]
+
+    async def async_start(self) -> None:
+        self._store = await async_get_store(self._hass)
+        self._registry = await async_get_registry(self._hass)
+        for adapter in self._adapters:
+            await adapter.start(self._on_event)
+
+    async def async_stop(self) -> None:
+        for adapter in self._adapters:
+            adapter.stop()
+
+    def resync(self) -> None:
+        """Re-run entity discovery on every adapter (after enabling entities)."""
+        for adapter in self._adapters:
+            adapter.resync()
+
+    # ------------------------------------------------------------- lookup
+    def definitions_for(self, device_id: str) -> list[RemoteDefinition]:
+        """Candidate definitions for a device: the user's pairing first,
+        then auto-matches by manufacturer/model. The one lookup shared by
+        event matching, test mode and the device view."""
         if self._registry is None:
-            return
-        device = dr.async_get(self._hass).async_get(device_id)
-        if device is None:
-            return
-        for definition in self._registry.find_for_device(
-            device.manufacturer, device.model
-        ):
-            match = definition.match(
-                "matter",
-                {"endpoint": endpoint, "event_type": event_type, "attributes": attrs},
-            )
-            if match is not None:
-                button_id, state_id = match
-                self._dispatch(definition, device_id, button_id, state_id)
-                return
-
-    # ------------------------------------------------- Matter position sensors
-    def _setup_matter_position(self) -> None:
-        """Subscribe to Matter `current_switch_position` sensors.
-
-        These sensors flip 0 → 1 on physical actuation and 1 → 0 on
-        release without HA's matter event-entity debounce, so any
-        layout that wants snappy rotation / press detection points its
-        states at this source.
-
-        Endpoint numbering matches the matter event entities — sort
-        the device's matter sensor entries by unique_id and assign
-        1-based indices in that order.
-
-        Idempotent: tears down the previous subscription and rebuilds
-        the index, so it can be called again when entities are enabled
-        at runtime via the panel's "Enable N sensors" button.
-        """
-        if self._mp_unsub is not None:
-            try:
-                self._mp_unsub()
-            except Exception:  # noqa: BLE001
-                _LOGGER.debug(
-                    "matter_position unsub raised on resync", exc_info=True
-                )
-            self._mp_unsub = None
-        self._matter_position_index.clear()
-
-        if self._registry is None:
-            return
-        device_reg = dr.async_get(self._hass)
-        entity_reg = er.async_get(self._hass)
-        watched: list[str] = []
-
-        for device in device_reg.devices.values():
-            defs = self._registry.find_for_device(device.manufacturer, device.model)
-            if not defs or not any(d.has_matter_position for d in defs):
-                continue
-            # Matter unique_ids embed the endpoint at index 3 — e.g.
-            # `<bridge>-<node>-MatterNodeDevice-1-GenericSwitch-59-1`.
-            # Parse it directly so the position-sensor index uses the
-            # same numbering as the YAML's matter `endpoint:` fields.
-            for entry in er.async_entries_for_device(
-                entity_reg, device.id, include_disabled_entities=False
-            ):
-                if (
-                    entry.domain != "sensor"
-                    or entry.platform != "matter"
-                    or "current_switch_position" not in (entry.entity_id or "")
-                ):
-                    continue
-                endpoint = _matter_endpoint_from_unique_id(entry.unique_id)
-                if endpoint is None:
-                    continue
-                self._matter_position_index[entry.entity_id] = (
-                    device.id,
-                    endpoint,
-                )
-                watched.append(entry.entity_id)
-
-        if not watched:
-            return
-        self._mp_unsub = async_track_state_change_event(
-            self._hass, watched, self._handle_matter_position_change
-        )
-
-    def resync_matter_position(self) -> None:
-        """Public hook used by the WS API after enabling entities."""
-        self._setup_matter_position()
-
-    @callback
-    def _handle_matter_position_change(self, event: Event) -> None:
-        new_state = event.data.get("new_state")
-        old_state = event.data.get("old_state")
-        if new_state is None or old_state is None:
-            return
-        new = (new_state.state or "").strip()
-        old = (old_state.state or "").strip()
-        if new in ("unknown", "unavailable"):
-            return
-        if old != "1" and new == "1":
-            edge = "rising"
-        elif old == "1" and new != "1":
-            edge = "falling"
-        else:
-            return
-        meta = self._matter_position_index.get(new_state.entity_id)
-        if meta is None or self._registry is None:
-            return
-        device_id, endpoint = meta
-        device = dr.async_get(self._hass).async_get(device_id)
-        if device is None:
-            return
-        for definition in self._registry.find_for_device(
-            device.manufacturer, device.model
-        ):
-            match = definition.match(
-                "matter_position", {"endpoint": endpoint, "edge": edge}
-            )
-            if match is not None:
-                button_id, state_id = match
-                self._dispatch(definition, device_id, button_id, state_id)
-                return
-
-    # ----------------------------------------------------------- Xiaomi BLE
-    def _setup_xiaomi_ble(self) -> None:
-        """Discover xiaomi_ble event entities for matched devices and subscribe.
-
-        The xiaomi_ble integration exposes one ``event`` entity per device
-        whose ``event_type`` attribute updates on each gesture (press,
-        long_press, rotate_left, rotate_right, rotate_*_pressed).
-        """
-        if self._registry is None:
-            return
-        device_reg = dr.async_get(self._hass)
-        entity_reg = er.async_get(self._hass)
-        watched: list[str] = []
-
-        for device in device_reg.devices.values():
-            defs = self._registry.find_for_device(device.manufacturer, device.model)
-            if not defs or not any(d.has_xiaomi_ble for d in defs):
-                continue
-            for entry in er.async_entries_for_device(
-                entity_reg, device.id, include_disabled_entities=False
-            ):
-                if entry.domain != "event" or entry.platform != "xiaomi_ble":
-                    continue
-                self._xiaomi_ble_entity_index[entry.entity_id] = device.id
-                watched.append(entry.entity_id)
-
-        if not watched:
-            return
-        unsub = async_track_state_change_event(
-            self._hass, watched, self._handle_xiaomi_ble_state_change
-        )
-        self._unsubs.append(unsub)
-
-    @callback
-    def _handle_xiaomi_ble_state_change(self, event: Event) -> None:
-        new_state = event.data.get("new_state")
-        old_state = event.data.get("old_state")
-        if new_state is None or old_state is None:
-            return
-        attrs = dict(new_state.attributes or {})
-        event_type = attrs.get("event_type")
-        if not event_type:
-            return
-        device_id = self._xiaomi_ble_entity_index.get(new_state.entity_id)
-        if device_id is None or self._registry is None:
-            return
-        device = dr.async_get(self._hass).async_get(device_id)
-        if device is None:
-            return
-        for definition in self._registry.find_for_device(
-            device.manufacturer, device.model
-        ):
-            match = definition.match(
-                "xiaomi_ble", {"event_type": event_type, "attributes": attrs}
-            )
-            if match is not None:
-                button_id, state_id = match
-                self._dispatch(definition, device_id, button_id, state_id)
-                return
-
-    # ---------------------------------------------------------- dispatch
-    def _defs_for_device(self, device_id: str) -> list[RemoteDefinition]:
-        device = dr.async_get(self._hass).async_get(device_id)
-        if device is None or self._registry is None:
             return []
-        return self._registry.find_for_device(device.manufacturer, device.model)
+        device = dr.async_get(self._hass).async_get(device_id)
+        if device is None:
+            return []
+        out: list[RemoteDefinition] = []
+        paired_id = self._store.pairing(device_id) if self._store else None
+        paired = self._registry.get(paired_id) if paired_id else None
+        if paired is not None:
+            out.append(paired)
+        for d in self._registry.find_for_device(device.manufacturer, device.model):
+            if d is not paired:
+                out.append(d)
+        return out
 
-    def _dispatch(
-        self,
-        definition: RemoteDefinition,
-        device_id: str,
-        button_id: str,
-        state_id: str,
-    ) -> None:
+    # ----------------------------------------------------------- dispatch
+    @callback
+    def _on_event(self, event: RemoteEvent) -> None:
+        matched = ev.match_event(event, self.definitions_for(event.device_id))
+        if matched is None:
+            return
+        definition, button_id, state_id = matched
         async_dispatcher_send(
-            self._hass, SIGNAL_REMOTE_EVENT, device_id, button_id, state_id
+            self._hass, SIGNAL_REMOTE_EVENT, event.device_id, button_id, state_id
         )
         if self._store is None:
             return
         actions = resolve_actions(
-            definition, self._store, device_id, button_id, state_id
+            definition, self._store, event.device_id, button_id, state_id
         )
         if not actions:
             return
         self._hass.async_create_task(
-            self._run_actions(device_id, button_id, state_id, actions),
-            f"remote_studio_run_{device_id}_{button_id}_{state_id}",
+            self._run_actions(event.device_id, button_id, state_id, actions),
+            f"remote_studio_run_{event.device_id}_{button_id}_{state_id}",
         )
 
     async def _run_actions(
@@ -533,10 +412,7 @@ class EventRuntime:
             await script.async_run(context=Context())
         except Exception:  # noqa: BLE001 — surface any user action failure
             _LOGGER.exception(
-                "Action execution failed for %s/%s/%s",
-                device_id,
-                button_id,
-                state_id,
+                "Action execution failed for %s/%s/%s", device_id, button_id, state_id
             )
 
 

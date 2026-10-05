@@ -29,6 +29,7 @@ Home Assistant **custom integration** at `custom_components/remote_studio/` that
 - **HA Script helper needs SCRIPT_SCHEMA.** Don't hand a raw action-list dict to `Script(...)` — validate via `homeassistant.helpers.config_validation.SCRIPT_SCHEMA` first, or you get cryptic `'service_template'` KeyErrors at execution. And pass `context=Context()`, never `None`.
 - **HassKey ≠ string.** `hass.data.get("automation")` returns `None` because the key is a `HassKey`, not the string `"automation"`. Import the canonical key (e.g. `from homeassistant.components.automation import DATA_COMPONENT`).
 - **HA's `Store` calls `_async_migrate_func` on *minor* bumps too.** Returning `{}` there wipes user data. The decision lives in `core/mappings.py:migrate` — keep it tested.
+- **Adding a source = one adapter + one schema entry.** Subclass `SourceAdapter` (or `EntityStateAdapter` for entity-backed sources) in `runtime.py`, add the signature schema to `core/definitions.py`, put the pure decoding in `core/events.py` with a test. Nothing else should need to know the source exists.
 - **Some remotes have no entities, only events.** Hue Dimmers (RWL021/RWL022) emit ZHA events but expose no button entities — match on `zha_event` payloads, not entity state. ZHA's Hue events use `<button>_<press_type>` (`on_press`, `up_short_release`); Z2M uses `_press_release` not `_short_release`.
 
 ## Adding a new remote
@@ -41,8 +42,8 @@ No Python changes needed. Use `make events` to capture real signatures off the u
 
 ## Backend layout
 
-- `core/` — HA-free (see `docs/adr/0001-ha-free-core.md`): `definitions.py` (schema, `build()`, `match(source, payload)`, `find_for_device()`), `mappings.py` (storage shape, migration). Tested in `tests/`.
-- HA-side glue: `registry.py` (loads YAML, caches), `storage.py` (HA Store), `runtime.py` (event subscriptions → match → actions), `api.py` (websocket commands), `panel.py` (sidebar registration).
+- `core/` — HA-free (see `docs/adr/0001-ha-free-core.md`): `definitions.py` (schema, `build()`, `match(source, payload)`, `find_for_device()`), `events.py` (`RemoteEvent`, `match_event()`, per-source decoders), `mappings.py` (`GroupConfig`, `MappingData`, migration). Tested in `tests/`.
+- HA-side glue: `registry.py` (loads YAML, caches), `storage.py` (HA Store), `runtime.py` (one `SourceAdapter` per integration emitting `RemoteEvent`s, `definitions_for(device_id)` = pairing first then auto-match, dispatch → actions), `api.py` (websocket commands), `panel.py` (sidebar registration).
 - Domain words are in `GLOSSARY.md`; use them in code and docs.
 
 ## Frontend layout

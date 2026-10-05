@@ -24,16 +24,14 @@ with the magick commands in the [README](README.md#branding).
 Matter event-entity listening landed in v0.2.0 but has two known sharp
 edges:
 
-1. The runtime scans for Matter event entities **once at integration
-   setup**. If a BILRESA (or any Matter remote) is paired *after* the
-   integration is already running, the new entity isn't subscribed —
-   reload the integration to pick it up. Fix: listen for
-   `device_registry_updated` / `entity_registry_updated` and refresh.
-2. Endpoint-to-button mapping currently sorts the device's matter
-   `event` entities by `unique_id` and assigns 1-based indices in that
-   order. This works for the BILRESA (2 endpoints) but isn't a public
-   contract of the Matter integration. Fix: parse the endpoint number
-   directly from each entity's `unique_id` once we confirm the format.
+1. Entity-backed adapters (matter, matter_position, xiaomi_ble) discover
+   their entities **once at start**. A remote paired *after* the
+   integration is running isn't subscribed until a reload or until the
+   panel's "enable sensors" button calls `runtime.resync()`. Fix: listen
+   for `entity_registry_updated` and call `runtime.resync()`; every
+   adapter already supports it.
+2. ~~Endpoint mapping sorted entities by unique_id.~~ Done: the endpoint
+   is parsed from the unique_id (`core/events.py:matter_endpoint_from_unique_id`).
 
 ### Hue Dimmer v2 over ZHA
 The Z2M sources are wired in `remotes/hue_dimmer_v2.yaml`, but the ZHA

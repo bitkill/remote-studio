@@ -19,7 +19,7 @@ from homeassistant.loader import async_get_integration
 
 from .const import DOMAIN
 from .registry import RemoteDefinition, async_get_registry
-from .runtime import SIGNAL_REMOTE_EVENT, resolve_actions
+from .runtime import SIGNAL_REMOTE_EVENT, async_get_runtime, resolve_actions
 from .storage import GroupConfig, async_get_store
 
 
@@ -217,8 +217,7 @@ def _disabled_required_entities(
     surface them in a warning + offer a one-click fix in the panel.
     """
     out: list[dict[str, Any]] = []
-    has_mp = getattr(definition, "has_matter_position", False)
-    if not has_mp:
+    if "matter_position" not in definition.sources:
         return out
     entity_reg = er.async_get(hass)
     for entry in er.async_entries_for_device(
@@ -265,8 +264,8 @@ async def ws_list_remotes(
 ) -> None:
     registry = await async_get_registry(hass)
     store = await async_get_store(hass)
+    runtime = await async_get_runtime(hass)
     device_reg = dr.async_get(hass)
-
     entity_reg = er.async_get(hass)
 
     remotes: list[dict[str, Any]] = []
@@ -304,7 +303,7 @@ async def ws_list_remotes(
     )
 
     for device in device_reg.devices.values():
-        matches = registry.find_for_device(device.manufacturer, device.model)
+        matches = runtime.definitions_for(device.id)
         if matches:
             chosen = matches[0]
             remotes.append(
@@ -405,11 +404,14 @@ async def ws_get_remote(
         return
 
     registry = await async_get_registry(hass)
+    runtime = await async_get_runtime(hass)
     definition: RemoteDefinition | None
     if "definition_id" in msg:
+        # Preview of a layout the user is considering; pairing is saved
+        # separately via set_pairing.
         definition = registry.get(msg["definition_id"])
     else:
-        candidates = registry.find_for_device(device.manufacturer, device.model)
+        candidates = runtime.definitions_for(device_id)
         definition = candidates[0] if candidates else None
 
     if definition is None:
@@ -556,13 +558,13 @@ async def ws_trigger_button(
     Resolves through the same role+target+override pipeline as a real
     physical event would, so test mode and live presses behave identically.
     """
-    registry = await async_get_registry(hass)
     device_reg = dr.async_get(hass)
     device = device_reg.async_get(msg["device_id"])
     if device is None:
         connection.send_error(msg["id"], "device_not_found", "Unknown device")
         return
-    candidates = registry.find_for_device(device.manufacturer, device.model)
+    runtime = await async_get_runtime(hass)
+    candidates = runtime.definitions_for(msg["device_id"])
     if not candidates:
         connection.send_error(msg["id"], "no_definition", "No matching layout")
         return
@@ -666,8 +668,6 @@ async def ws_enable_entities(
     so the freshly-enabled entities are picked up without a HA
     restart.
     """
-    from .runtime import async_get_runtime  # local import to avoid cycle
-
     entity_reg = er.async_get(hass)
     enabled: list[str] = []
     failed: list[dict[str, str]] = []
@@ -678,18 +678,15 @@ async def ws_enable_entities(
         except Exception as err:  # noqa: BLE001 — surface to UI
             failed.append({"entity_id": entity_id, "error": str(err)})
 
-    # Re-run the matter_position discovery so the runtime starts
-    # listening to the newly-enabled sensors. The setup is idempotent —
-    # it tears down its previous subscription before reattaching.
+    # Re-run entity discovery so the adapters start listening to the
+    # newly-enabled sensors without a HA restart.
     if enabled:
         try:
             runtime = await async_get_runtime(hass)
-            runtime.resync_matter_position()
+            runtime.resync()
         except Exception:  # noqa: BLE001 — log but don't fail the WS call
             import logging
-            logging.getLogger(__name__).exception(
-                "matter_position resync failed after enabling entities"
-            )
+            logging.getLogger(__name__).exception("resync failed after enabling entities")
 
     connection.send_result(
         msg["id"], {"ok": True, "enabled": enabled, "failed": failed}

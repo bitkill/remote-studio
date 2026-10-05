@@ -197,18 +197,6 @@ class RemoteDefinition:
             if getattr(self, f"_{s}")
         )
 
-    @property
-    def has_matter(self) -> bool:
-        return bool(self._matter)
-
-    @property
-    def has_xiaomi_ble(self) -> bool:
-        return bool(self._xiaomi_ble)
-
-    @property
-    def has_matter_position(self) -> bool:
-        return bool(self._matter_position)
-
     def groups(self) -> list[dict[str, Any]]:
         """Groups in declaration order: ``{id, label, has_dim, has_scene, button_ids}``.
 
